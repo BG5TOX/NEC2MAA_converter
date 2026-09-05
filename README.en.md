@@ -2,6 +2,8 @@
 
 English | **[简体中文](README.md)**
 
+**[🌐 Online version (use it directly in your browser, no download)](https://bg5tox.github.io/NEC2MAA_converter/)**
+
 **A bidirectional antenna-model format converter between NEC and MMANA-GAL** — a pure front-end single-page application that runs by double-clicking (no install, no server, no build chain), developed by BG5TOX.
 
 Converts between the **4NEC2 (.nec/.inp)** and **MMANA-GAL (.maa)** antenna simulation formats. The UI supports runtime switching between **Simplified Chinese and English**.

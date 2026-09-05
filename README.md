@@ -2,6 +2,8 @@
 
 **[English](README.en.md)** | 简体中文
 
+**[🌐 在线版（无需下载，浏览器直接使用）](https://bg5tox.github.io/NEC2MAA_converter/)**
+
 **NEC ⇄ MMANA-GAL 天线模型双向格式转换工具** — 双击即用的纯前端单页应用（无需安装、无需服务器、无需构建链），由 BG5TOX 开发。
 
 支持 **4NEC2 (.nec/.inp)** 与 **MMANA-GAL (.maa)** 两种天线仿真格式之间的双向转换，界面支持**简体中文 / English** 运行时切换。
