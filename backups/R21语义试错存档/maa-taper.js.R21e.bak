@@ -1,0 +1,144 @@
+// maa-taper.js — 锥度振子重建层（R21）
+// 职责: 负半径导线按 $$$ 锥度组合定义重建为多根首尾相连的不同半径子导线 (纯几何, 不含分段策略)
+// 语义 (R21 定案, 用户批复 C1/C2 2026-09-03):
+//   单位: 文件数值统一为米 (L m, R m) — "R(mm)" 为 MMANA 编辑器 UI 语义
+//   Type: 文件存 0-3 = UI 编号 1-4 减一 → 0/2=中心向两端(对称), 1/3=起点向末端(顺序)
+//          (均匀/非均匀分段差异 file 0/1 vs 2/3 只影响原程序分段策略, M2N 只关心几何 → 忽略)
+//   尾对 L>=99999 = 末梢哨兵: 从上一段累计位置延伸到线段端点
+// 输出 rebuilt: { wires[], origToSubs[], expanded, expandedFrom, expandedTo }
+//   子导线: { x1,y1,z1,x2,y2,z2, rad, segRaw, origIdx, arcStart, arcEnd }
+//   未锥度导线: 原对象引用 (字节不变红线)
+// 依赖: 无 (纯函数; 告警经 warnings 数组)
+
+    const TAPER_TAIL_SENTINEL = 99999;    // L >= 99999 视为末梢 (容忍 99999.9 等变体)
+    const TAPER_ZERO_LEN = 1e-9;          // 零长子段判定阈值
+
+    // Type → 几何展开模式 单点常量表 (C2): file 0/2 = 对称中心向两端, 1/3 = 顺序起点向末端
+    const TAPER_CENTER_OUT_TYPES = new Set([0, 2]);
+
+    function expandTaperedWires(wires, taperDefs, warnings) {
+        const out = [];
+        const origToSubs = [];      // per 原线: [{gwIdx0, arcStart, arcEnd}] (未锥度=单条全弧)
+        let expandedFrom = 0, expandedTo = 0;
+        const defs = (taperDefs && taperDefs.byName) ? taperDefs.byName : new Map();
+
+        for (let i = 0; i < wires.length; i++) {
+            const w = wires[i];
+            const L = wireLength(w);
+            const subArcs = expandOne(w, L, defs, warnings, i + 1);
+            if (subArcs === null) {
+                // 未锥度: 原样保留 (引用不变)
+                out.push(w);
+                origToSubs.push([{ gwIdx0: out.length - 1, arcStart: 0, arcEnd: L }]);
+            } else {
+                expandedFrom++;
+                // 空间顺序展开: 弧段已按 arcStart 升序, 端点线性插值
+                const subs = [];
+                for (const arc of subArcs) {
+                    subs.push({
+                        x1: lerp(w.x1, w.x2, arc.a / L), y1: lerp(w.y1, w.y2, arc.a / L), z1: lerp(w.z1, w.z2, arc.a / L),
+                        x2: lerp(w.x1, w.x2, arc.b / L), y2: lerp(w.y1, w.y2, arc.b / L), z2: lerp(w.z1, w.z2, arc.b / L),
+                        rad: arc.R, segRaw: w.segRaw, origIdx: i + 1, arcStart: arc.a, arcEnd: arc.b
+                    });
+                }
+                const base = out.length;
+                for (const s of subs) out.push(s);
+                origToSubs.push(subs.map((s, k) => ({ gwIdx0: base + k, arcStart: s.arcStart, arcEnd: s.arcEnd })));
+                expandedTo += subs.length;
+            }
+        }
+        return { wires: out, origToSubs, expanded: expandedFrom > 0, expandedFrom, expandedTo };
+    }
+
+    // 单线展开: 返回弧段列表 [{a, b, R}] (按 a 升序) 或 null=未锥度
+    function expandOne(w, L, defs, warnings, wireNo) {
+        if (!(w.rad < 0)) return null;
+        const def = defs.get(w.rad);
+        if (!def) {
+            warnings.push(`[错误] 导线 ${wireNo} 引用锥度名 ${w.rad} 未在 $$$ 定义区找到, 该线已按半径 1mm 直出, 请人工核查。`);
+            const fixed = { ...w, rad: 0.001 };
+            // 修改原线对象半径以直出 (保留拓扑); origToSubs 仍走单段
+            Object.assign(w, { rad: 0.001 });
+            return null;
+        }
+        let arcs;
+        if (TAPER_CENTER_OUT_TYPES.has(def.type)) {
+            arcs = expandCenterOut(def, L, warnings, wireNo, w.rad);
+        } else {
+            // file 1/3 = 顺序型; type 越界 (>3/NaN) 兜底按顺序型 — parser 已告警? 此处兜底不重复告警
+            arcs = expandSequential(def, L, warnings, wireNo, w.rad);
+        }
+        if (arcs === null || arcs.length === 0) return null;
+        return arcs;
+    }
+
+    // 顺序型 (起点向末端): 段 k 覆盖 [cum_{k-1}, min(cum_k, L)]
+    function expandSequential(def, L, warnings, wireNo, radName) {
+        const arcs = [];
+        let cum = 0;
+        for (const p of def.pairs) {
+            if (cum >= L) break;
+            const end = p.isTail ? L : Math.min(cum + p.L, L);
+            if (end - cum > TAPER_ZERO_LEN) arcs.push({ a: cum, b: end, R: p.R });
+            cum = p.isTail ? L : cum + p.L;
+        }
+        // 余长无哨兵: 沿用最后一对 R + 告警
+        if (cum < L - TAPER_ZERO_LEN && arcs.length > 0) {
+            const lastR = def.pairs[def.pairs.length - 1].R;
+            arcs.push({ a: cum, b: L, R: lastR });
+            warnings.push(`[提示] 导线 ${wireNo} 锥度组合 ${radName} 累计长度(${cum.toFixed(3)}m)小于线长(${L.toFixed(3)}m)且无末梢哨兵, 余段已沿用末对半径 ${lastR}m。`);
+        }
+        return arcs;
+    }
+
+    // 对称型 (中心向两端): 中心 c=L/2, 逐对向两侧展开; 尾对=距中心剩余
+    // R21e 最终语义 (用户 MMANA 实测两次裁决 2026-09-03):
+    //   L1 = 中心节半长 → 中心节 [c-L1, c+L1] (跨中心单段, 总宽 2*L1);
+    //   L2..Ln = 各外侧节每侧长度 (从中心节边缘向外依次排);
+    //   尾对 = 从外侧累计处延伸到线端点。
+    //   (R21d 曾改为全部 L/2 半宽 — 用户否决; 佐证 4EL20HM [1.8,1.8,尾] 半长 5.405 → 中心 3.6m@30mm + 每侧 1.8@25mm + 尾 1.805@20mm, "30/25/20mm Pipe"标题三管全现)
+    // R21c (用户需求 2026-09-03): 中心节不拆分 — 输出为跨中心单段, 馈电锚 w?c 落其内部 50%, 中心点不得为段交界
+    function expandCenterOut(def, L, warnings, wireNo, radName) {
+        const c = L / 2;
+        let cum = 0;
+        const outer = [];   // 中心单段之外的段 (每对产生左右两弧, 输出前拆排)
+        let center = null;  // 跨中心单段 {a, b, R}
+        for (let k = 0; k < def.pairs.length; k++) {
+            const p = def.pairs[k];
+            if (k === 0) {
+                // 第一对: 跨中心单段 (长 2*min(L1, c))
+                const half = p.isTail ? c : Math.min(p.L, c);
+                if (2 * half > TAPER_ZERO_LEN) center = { a: c - half, b: c + half, R: p.R };
+                cum = half;
+                continue;
+            }
+            if (cum >= c - TAPER_ZERO_LEN) break;
+            const end = p.isTail ? c : Math.min(cum + p.L, c);
+            if (end - cum > TAPER_ZERO_LEN) {
+                outer.push({ a: c - end, b: c - cum, R: p.R });   // 左外侧
+                outer.push({ a: c + cum, b: c + end, R: p.R });   // 右外侧
+            }
+            cum = p.isTail ? c : cum + p.L;
+        }
+        // 无哨兵且累计 < 半长: 两侧余段沿用末对 R + 告警
+        if (cum < c - TAPER_ZERO_LEN && def.pairs.length > 0) {
+            const lastR = def.pairs[def.pairs.length - 1].R;
+            outer.push({ a: 0, b: c - cum, R: lastR });
+            outer.push({ a: c + cum, b: L, R: lastR });
+            warnings.push(`[提示] 导线 ${wireNo} 锥度组合 ${radName} 累计长度(${cum.toFixed(3)}m)小于半线长(${c.toFixed(3)}m)且无末梢哨兵, 余段已沿用末对半径 ${lastR}m。`);
+        }
+        // 空间顺序 (a 升序): 左外侧 + 跨中心单段 + 右外侧
+        const leftOuter = outer.filter(s => s.b <= c + 1e-9).sort((x, y) => x.a - y.a);
+        const rightOuter = outer.filter(s => s.a >= c - 1e-9).sort((x, y) => x.a - y.a);
+        const result = [];
+        for (const s of leftOuter) result.push(s);
+        if (center) result.push(center);
+        for (const s of rightOuter) result.push(s);
+        return result;
+    }
+    function nearEq(a, b) { return Math.abs(a - b) <= 1e-9; }
+
+    function wireLength(w) {
+        return Math.sqrt((w.x2 - w.x1) * (w.x2 - w.x1) + (w.y2 - w.y1) * (w.y2 - w.y1) + (w.z2 - w.z1) * (w.z2 - w.z1));
+    }
+    function lerp(a, b, t) { return a + (b - a) * t; }

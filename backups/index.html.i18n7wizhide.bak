@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NEC 转 MMANA 格式转换工具</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="container" id="appRoot">
+    <button class="lang-btn lang-toggle" id="langToggleWiz">English</button>
+    <div id="wizardScreen" style="min-height:70vh; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:28px;">
+        <h1 style="margin:0;"><span data-i18n="wiz.title">天线模型格式转换工具</span> <span class="dir-badge">v0.5</span></h1>
+        <div class="subtitle" data-i18n="wiz.subtitle">by BG5TOX &nbsp;|&nbsp; 选择转换方向开始</div>
+        <div style="display:flex; gap:24px; flex-wrap:wrap; justify-content:center;">
+            <button id="wizN2M" class="wizard-card">
+                <div class="wiz-icon">⚡</div>
+                <div class="wiz-title" data-i18n="wiz.n2m.title">4NEC2 → MMANA-GAL</div>
+                <div class="wiz-desc wiz-inline">
+                    <span class="wiz-format">.nec</span>
+                    <span class="wiz-arrow" data-i18n="wiz.n2m.arrow">→ 转换 →</span>
+                    <span class="wiz-format">.maa</span>
+                </div>
+            </button>
+            <button id="wizM2N" class="wizard-card">
+                <div class="wiz-icon">🔄</div>
+                <div class="wiz-title" data-i18n="wiz.m2n.title">MMANA-GAL → 4NEC2</div>
+                <div class="wiz-desc wiz-inline">
+                    <span class="wiz-format">.maa</span>
+                    <span class="wiz-arrow" data-i18n="wiz.m2n.arrow">→ 转换 →</span>
+                    <span class="wiz-format">.nec</span>
+                </div>
+            </button>
+        </div>
+    </div>
+
+    <div id="workScreen" style="display:none;">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
+        <div>
+        <h1 id="workTitle" style="margin:0; font-size:1.3rem; display:flex; align-items:center; gap:10px;">4NEC2 转 MMANA-GAL 格式转换工具 <span class="dir-badge" id="verBadge2">v0.5</span></h1>
+        <div class="subtitle" data-i18n="work.subtitle">by BG5TOX &nbsp;|&nbsp; 发布日期2026.09.04</div>
+        </div>
+        <div style="display:flex; flex-direction:column; align-items:flex-end; gap:0;">
+            <button class="lang-btn lang-toggle" id="langToggleWork">English</button>
+            <button class="btn-back-wizard" id="btnSwitchDir" data-i18n="work.back">⬅ 返回</button>
+        </div>
+    </div>
+    
+    <div class="settings-wrapper" id="panelSettingsWrap">
+        <div class="settings-section" id="panelSettings">
+            <div class="settings-title">
+                <span data-i18n="panel.n2m.basic">基本参数</span>
+                <div class="title-actions">
+                    <button class="btn-mini active" id="btnModeFile" data-i18n="panel.btnModeFile">按文件名</button>
+                    <button class="btn-mini" id="btnModeCM" data-i18n="panel.btnModeCM">按原文件备注</button>
+                </div>
+            </div>
+            <div class="controls">
+                <div class="control-group full-width">
+                    <label data-i18n="panel.antennaName">天线名称</label>
+                    <input type="text" id="maaTitle" value="Converted_Antenna" data-i18n-ph="panel.maaTitle.ph" placeholder="MAA 内部标题 (纯英文/数字)">
+                </div>
+                <div class="control-group full-width">
+                    <label><span data-i18n="panel.freq">频率(MHz)</span> <span class="req-star">*</span></label>
+                    <input type="number" id="freq" value="" step="0.001" data-i18n-ph="panel.freq.ph" placeholder="自动读取/手填" style="border-color: var(--warning);">
+                </div>
+                <div class="control-group">
+                    <label data-i18n="panel.rImp">阻抗 R (Ω)</label>
+                    <input type="number" id="r_imp" value="50.0" step="0.1">
+                </div>
+                <div class="control-group">
+                    <label data-i18n="panel.xImp">阻抗 jX (Ω)</label>
+                    <input type="number" id="x_imp" value="0.0" step="0.1">
+                </div>
+                <div class="control-group full-width">
+                    <label data-i18n="panel.axisMap">坐标轴转换</label>
+                    <select id="axis_map">
+                        <option value="keep" selected data-i18n="panel.axis.keep">保持原坐标轴</option>
+                        <option value="swap" data-i18n="panel.axis.swap">X/Y轴对调</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="settings-section">
+            <div class="settings-title" data-i18n="panel.n2m.env">环境参数</div>
+            <div class="controls">
+                <div class="control-group full-width">
+                    <label data-i18n="panel.groundType">地面类型 (G)</label>
+                    <select id="g_ground">
+                        <option value="0" selected data-i18n="panel.ground.0">0 - 自由空间</option>
+                        <option value="1" data-i18n="panel.ground.1">1 - 理想地面</option>
+                        <option value="2" data-i18n="panel.ground.2">2 - 真实地面 (MININEC)</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label data-i18n="panel.material">天线材料</label>
+                    <select id="ant_material">
+                        <option value="0" selected data-i18n="panel.mat.0">无损</option>
+                        <option value="1" data-i18n="panel.mat.1">铜线</option>
+                        <option value="2" data-i18n="panel.mat.2">铜管</option>
+                        <option value="3" data-i18n="panel.mat.3">铝线</option>
+                        <option value="4" data-i18n="panel.mat.4">铝管</option>
+                        <option value="5" data-i18n="panel.mat.5">铁线</option>
+                        <option value="6" data-i18n="panel.mat.6">铁管</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label data-i18n="panel.addHeight">附加高度 (m)</label>
+                    <input type="number" id="add_height" value="0.0" step="0.1">
+                </div>
+            </div>
+            
+            <div class="settings-title" style="margin-top: 10px;" data-i18n="panel.rearLobe">后瓣评估范围</div>
+            <div class="controls">
+                <div class="control-group">
+                    <label data-i18n="panel.az">方位角 Az (°)</label>
+                    <input type="number" id="az_angle" value="120" step="1">
+                </div>
+                <div class="control-group">
+                    <label data-i18n="panel.el">仰角 El (°)</label>
+                    <input type="number" id="el_angle" value="60" step="1">
+                </div>
+            </div>
+        </div>
+
+        <div class="settings-section">
+            <div class="settings-title" data-i18n="panel.segAuto">自动分段参数</div>
+            <div class="controls">
+                <div class="control-group full-width">
+                    <label data-i18n="panel.dm1">基础分段 (DM1)</label>
+                    <input type="number" id="dm1" value="800" step="1">
+                </div>
+                <div class="control-group full-width">
+                    <label data-i18n="panel.dm2">密集分段 (DM2)</label>
+                    <input type="number" id="dm2" value="80" step="1">
+                </div>
+                <div class="control-group">
+                    <label data-i18n="panel.sc">渐变系数 (SC)</label>
+                    <input type="number" id="sc" value="2.0" step="0.1">
+                </div>
+                <div class="control-group">
+                    <label data-i18n="panel.ec">保留段数 (EC)</label>
+                    <input type="number" id="ec" value="2" step="1">
+                </div>
+            </div>
+        </div>
+
+        <div class="settings-section full-width-section">
+            <div class="settings-title">
+                <span data-i18n="panel.srcLoad">激励源 (Source) &amp; 负载 (Load)</span>
+                <div class="title-actions">
+                    <button class="btn-mini" id="btnReExtract" style="background:#e8f0fe; color:#1a73e8; font-weight:bold;" data-i18n="panel.reExtract">↻ 重新从代码提取解析</button>
+                </div>
+            </div>
+            <div class="controls" style="grid-template-columns: 1fr 1fr;">
+                <div class="control-group full-width" style="grid-column: span 1;">
+                    <label><span data-i18n="panel.source">Source 激励源定义</span> <span class="help-text" style="display:inline; margin-left:5px;" data-i18n="panel.source.hint">(格式: 位置, 幅度(V), 相位(°))</span></label>
+                    <textarea id="sourceInput" rows="2">w1c, 1.0, 0.0</textarea>
+                </div>
+                <div class="control-group full-width" style="grid-column: span 1;">
+                    <label><span data-i18n="panel.load">Load 负载定义</span> <span class="help-text" style="display:inline; margin-left:5px;" data-i18n="panel.load.hint">(格式: 位置, 类型0/1, P1, P2, P3)</span></label>
+                    <textarea id="loadInput" rows="2"></textarea>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="settings-wrapper" id="m2nPanelWrap" style="display:none;">
+        <div class="settings-section">
+            <div class="settings-title">
+                <span data-i18n="panel.m2n.basic">基本参数</span>
+                <div class="title-actions">
+                    <button class="btn-mini active" id="m2nBtnModeFile" data-i18n="panel.m2nBtnModeFile">按文件名</button>
+                    <button class="btn-mini" id="m2nBtnModeTitle" data-i18n="panel.m2nBtnModeTitle">按原文件标题</button>
+                </div>
+            </div>
+            <div class="controls">
+                <div class="control-group full-width">
+                    <label data-i18n="panel.antennaName">天线名称</label>
+                    <input type="text" id="m2nTitle" value="" data-i18n-ph="panel.maaTitle.ph" placeholder="MAA 内部标题 (纯英文/数字)">
+                </div>
+                <div class="control-group full-width">
+                    <label><span data-i18n="panel.freq">频率(MHz)</span> <span class="req-star">*</span></label>
+                    <input type="number" id="m2nFreq" value="" step="0.001" data-i18n-ph="panel.freq.ph" placeholder="自动读取/手填" style="border-color: var(--warning);">
+                </div>
+                <div class="control-group">
+                    <label data-i18n="panel.rImp">阻抗 R (Ω)</label>
+                    <input type="number" id="m2nRImp" value="50.0" step="0.1">
+                </div>
+                <div class="control-group">
+                    <label data-i18n="panel.xImp">阻抗 jX (Ω)</label>
+                    <input type="number" id="m2nXImp" value="0.0" step="0.1">
+                </div>
+                <div class="control-group full-width">
+                    <label data-i18n="panel.axisMap">坐标轴转换</label>
+                    <select id="m2nAxisMap">
+                        <option value="keep" selected data-i18n="panel.axis.keep">保持原坐标轴</option>
+                        <option value="swap" data-i18n="panel.axis.swap">X/Y轴对调</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="settings-section">
+            <div class="settings-title" data-i18n="panel.m2n.ground">地面参数</div>
+            <div class="controls">
+                <div class="control-group full-width">
+                    <label data-i18n="panel.m2n.groundType">地面类型</label>
+                    <select id="m2nGround">
+                        <option value="0" selected data-i18n="panel.m2nGround.0">0 - 自由空间</option>
+                        <option value="1" data-i18n="panel.m2nGround.1">1 - 理想地面</option>
+                        <option value="2" data-i18n="panel.m2nGround.2">2 - 真实地面 (MININEC)</option>
+                        <option value="-1" data-i18n="panel.m2nGround.-1">-1 - 真实地面 (Sommerfeld-Norton)</option>
+                    </select>
+                </div>
+                <div class="control-group full-width" id="m2nPresetGroup" style="display:none;">
+                    <label data-i18n="panel.m2n.preset">地面预设</label>
+                    <select id="m2nGroundPreset">
+                        <option value="" selected data-i18n="panel.m2nPreset.custom">自定义</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label data-i18n="panel.m2n.sigma">地面电导率 (mS/m)</label>
+                    <input type="number" id="m2nSigma" value="" step="0.1" data-i18n-ph="panel.m2n.sigma.ph" placeholder="手动填入" disabled>
+                </div>
+                <div class="control-group">
+                    <label data-i18n="panel.m2n.epsr">地面介电常数 (εr)</label>
+                    <input type="number" id="m2nEpsr" value="" step="0.5" data-i18n-ph="panel.m2n.epsr.ph" placeholder="手动填入" disabled>
+                </div>
+            </div>
+        </div>
+
+        <div class="settings-section">
+            <div class="settings-title" data-i18n="panel.m2n.segParams">分段参数</div>
+            <div class="controls" style="row-gap:14px;">
+                <div class="control-group full-width" style="flex-direction:row !important; align-items:center; justify-content:flex-start; gap:8px;">
+                    <label for="m2nForceSeg" style="margin:0; padding:0; cursor:pointer; text-align:left; flex:0 0 auto;" data-i18n="panel.m2nForceSeg">打开强制分段</label>
+                    <input type="checkbox" id="m2nForceSeg" style="width:16px; height:16px; margin:0; flex:0 0 auto;">
+                </div>
+                <div class="control-group">
+                    <label data-i18n="panel.m2n.segDensity">分段密度</label>
+                    <div style="display:flex; align-items:center; gap:6px;">
+                        <input type="number" id="m2nSegDensity" value="" step="1" data-i18n-ph="panel.m2n.sigma.ph" placeholder="手动填入" disabled>
+                        <span style="font-size:0.8rem; color:var(--text-light); white-space:nowrap;" data-i18n="panel.m2n.segsPerLambda">Segs/λ</span>
+                    </div>
+                    <div class="help-text" id="m2nSegDensityHint" data-i18n="panel.m2n.segDensityHint">典型值：15~100</div>
+                </div>
+            </div>
+            <div id="m2nAutoSegNote" style="background:#fff8e1; border:1px solid #f0c36d; border-radius:6px; padding:8px 10px; box-sizing:border-box; margin-top:12px;">
+                <span style="color:#b45309; font-size:0.8rem; font-weight:600;" data-i18n="ui.m2nAutoSegNote">注意：当前分段数统一为1， 导入模型时需在 NEC 软件中打开自动分段功能。</span>
+            </div>
+        </div>
+
+        <div class="settings-section full-width-section">
+            <div class="settings-title">
+                <span data-i18n="panel.srcLoad">激励源 (Source) &amp; 负载 (Load)</span>
+                <div class="title-actions">
+                    <button class="btn-mini" id="btnM2NReparse" style="background:#e8f0fe; color:#1a73e8; font-weight:bold;" data-i18n="panel.m2n.reparse">↻ 重新从代码提取解析</button>
+                </div>
+            </div>
+            <div class="controls" style="grid-template-columns: 1fr 1fr;">
+                <div class="control-group full-width" style="grid-column: span 1;">
+                    <label><span data-i18n="panel.m2n.source">Source 激励源</span> <span class="help-text" style="display:inline; margin-left:5px;" data-i18n="panel.m2n.source.hint">(格式: w线号锚点, 相位(°), 幅度)</span></label>
+                    <textarea id="m2nSourceInput" rows="2"></textarea>
+                </div>
+                <div class="control-group full-width" style="grid-column: span 1;">
+                    <label><span data-i18n="panel.m2n.load">Load 负载</span> <span class="help-text" style="display:inline; margin-left:5px;" data-i18n="panel.m2n.load.hint">(格式: w线号锚点, 类型0/1, 参数…)</span></label>
+                    <textarea id="m2nLoadInput" rows="2"></textarea>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="main-workspace">
+        <div class="panel">
+            <div class="action-bar">
+                <span data-i18n="main.step1">1. 载入模型 (支持拖拽)</span>
+                <div>
+                    <input type="file" id="fileInput" accept=".nec,.inp,.txt" style="display:none">
+                    <button class="btn btn-upload" id="btnUpload">📁 导入 .nec</button>
+                </div>
+            </div>
+            <textarea id="inputNec" class="code-area" placeholder="请将 .nec 文件拖拽到此处..."></textarea>
+        </div>
+        
+        <div class="panel">
+            <div class="action-bar">
+                <span data-i18n="main.step2">2. 输出结果</span>
+                <button id="btnDownload" class="btn btn-success" disabled>💾 下载 .maa</button>
+            </div>
+            <textarea id="outputMaa" class="code-area" readonly data-i18n-ph="main.output.ph" placeholder="转换成功后，结果将显示在这里..."></textarea>
+        </div>
+    </div>
+
+    <div class="convert-row">
+        <button class="btn btn-primary" id="btnConvert">⚡ 执行转换 (Convert) &gt;&gt;</button>
+    </div>
+    </div>
+</div>
+
+
+    <script src="js/state.js"></script>
+    <script src="js/i18n.js"></script>
+    <script src="js/i18n/zh.js"></script>
+    <script src="js/i18n/en.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/geometry.js"></script>
+    <script src="js/extract.js"></script>
+    <script src="js/maa2nec/maa-parser.js"></script>
+    <script src="js/maa2nec/maa-taper.js"></script>
+    <script src="js/maa2nec/maa-symbols.js"></script>
+    <script src="js/maa2nec/maa-writer.js"></script>
+    <script src="js/convert.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

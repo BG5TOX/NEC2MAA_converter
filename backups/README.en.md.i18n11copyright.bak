@@ -1,0 +1,122 @@
+# NEC2MAA Converter
+
+English | **[简体中文](README.md)**
+
+**A bidirectional antenna-model format converter between NEC and MMANA-GAL** — a pure front-end single-page application that runs by double-clicking (no install, no server, no build chain), developed by BG5TOX.
+
+Converts between the **4NEC2 (.nec/.inp)** and **MMANA-GAL (.maa)** antenna simulation formats. The UI supports runtime switching between **Simplified Chinese and English**.
+
+---
+
+## Quick Start
+
+1. Download/clone this repository anywhere;
+2. **Double-click `index.html`** — it opens directly in your browser (file:// protocol; no server or dependencies required);
+3. Pick a direction on the start screen (4NEC2 → MMANA-GAL or the reverse), then drop a model file onto the page or use the import button;
+4. Review/adjust parameters in the panels, click "Convert";
+5. Download the result (automatically named `<original>_converted.maa/.nec`).
+
+> Chrome / Edge recommended. Switch the UI language with the button in the top-right corner; Simplified Chinese is the default and your choice is remembered by the browser.
+
+---
+
+## Main Features
+
+### Direction 1: 4NEC2 (.nec) → MMANA-GAL (.maa)
+
+**NEC-2 cards supported on the input side:**
+
+| Category | Cards | Handling |
+|---|---|---|
+| Geometry | `GW` (straight wire), `GX` (mirror), `GM` (rotate/translate/copy) | Single pass in file order; GM implements the full multi-axis rotation matrix and NRPT copy semantics |
+| Geometry (warned passthrough) | `GA` `GH` `GR` `SP` `SM` | Not convertible — a clear warning is raised and manual review is advised |
+| Excitation | `EX 0/5/6` | Mapped to an MMANA voltage source; EX 6 current sources are mapped numerically with a warning; EX 1–4 (plane-wave/point sources) have no equivalent — dropped with a warning |
+| Loads | `LD 1/2/3/4/5` | Series RLC / parallel RLC (single-frequency equivalent) / series impedance / parallel admittance (exact) / conductivity (manual setup hint); LD 0/6/7 rejected and preserved as comments |
+| Environment | `GN` (all four ground types), `FR` (sweeps take F1) | GN 2 (Sommerfeld-Norton) is downgraded to MININEC real ground with a warning |
+| Symbols | `SY` (one per card), `GS` (scaling incl. mm/cm/m/in/ft unit suffixes) | Safe expression evaluation with SIN/COS/TAN/SQRT/ABS/EXP/LOG/PI and uH/nF/pF unit literals |
+| Comments | `CM`/`CE` | Kept in the output comment section (pure-ASCII gate) |
+
+**Output .maa characteristics:** dual-variant detection; wire radii/coordinates converted to metres; source/load rows use the MMANA manual designator syntax (`w?c/b/e±offset`); auto-segmentation parameters (DM1/DM2/SC/EC) and the full 7-field G/H line (ground / additional height / material index / impedance / F-B statistics range); unsupported structures (TL transmission lines, etc.) are clearly warned about and appended to the comment tail.
+
+### Direction 2: MMANA-GAL (.maa) → 4NEC2 (.nec)
+
+**.maa characteristics supported on the input side:**
+
+- **Both file variants** (A compact count-line / B per-section headers), including the Russian single-star section headers (`* Провода *`) — sections are classified by data shape, immune to CP1251 mojibake;
+- **CP1251 encoding auto-detection:** .maa files saved by the Russian MMANA build are re-decoded as windows-1251 when the UTF-8 trial decode yields replacement characters;
+- **Wires/sources/loads:** 8-field wire rows, `w?c/b/e±offset` designator sources (phase/magnitude), and both load forms (series L-C-Q / fixed R-jX impedance);
+- **`$$$ Taper wire set $$$` tapered elements (this project's core contribution):** negative-radius wires are **rebuilt into multiple connected GW sub-sections with stepped radii** per the definition table — fully implementing both symmetric (center-out) and sequential expansion semantics, the tip sentinel (L≥99999), center-node cross-midpoint merging, and 50% feedpoint anchoring (see `docs/MAA format concise reference.md` §5a for the full semantics, verified by user-supplied formulas);
+- **Segmentation / G/H parameters, ###Comment### text** (non-ASCII content dropped per policy with an aggregate warning).
+
+**Output .nec characteristics:** CM English summary header (original title / provenance / taper rebuild / material hints); SY symbol cards, one per card (radii as descending D1..Dn, load L/C/Q, base symbols f/h); GW radius `0.5*Dn` expressions and `z+h` vertical offset; EX **percentage anchoring** (`50%`/`1`/`100%`) with precise tapered sub-section positioning (e.g. `29, 43.2%`); LD expressions (`2*PI*f*L1*1E-6/Q1`); all four GN ground-type mappings (with σ/εr panel input and 27 presets sourced from 4NEC2's Ground.txt); FR frequency; **output is enforced pure ASCII** (terminal assertion).
+
+### General
+
+- Drag-and-drop or button import, automatic direction switching by file extension, automatic sniffing of pasted .maa text;
+- Every parameter panel is editable before conversion (frequency / impedance / axis swap / ground / segmentation density / sources / loads / title mode);
+- Every semantic that cannot be mapped exactly produces a **numbered warning** (on-screen in the current UI language; written to the output file always in English);
+- Language-pack architecture: adding a language means copying one file under `js/i18n/` (see "Extending" below).
+
+---
+
+## Project History
+
+| Version | Date | Highlights |
+|---|---|---|
+| v0.1–v0.2 | before 2026-09-01 | Single-file prototype: NEC→MAA direction, expression evaluation, designator positioning |
+| v0.3 | 2026-09-01~02 | Modularization into a 9-file project (M0–M7); M2N direction established (R1 parser / R2 symbols+writer / R3–R5 dual-panel UI / R8–R20 semantic corrections and contract hardening, incl. the authoritative G/H field naming and Ground.txt-sourced ground presets) |
+| v0.4 | 2026-09-03 | **R21 tapered-element rebuild** (four semantic-convergence rounds: jp2000 gold standard 10→56 sub-sections; the w10 5.10 m user formula verdict); CP1251 detection; **security audit closed** (SF1/SF2, 8 fixes: injection sanitization / finite-value gates / resource budgets, etc.) |
+| v0.5 | 2026-09-04~05 | **Chinese/English UI with runtime switching** (i18n-1..4: standalone language packs + dual-view warnings — on-screen follows the UI language, output files stay English); 723-file hash baseline re-certification; 6 post-release UI acceptance rounds (toggle button / flag badge / line-height normalization / assets folder) |
+
+Methodology details (batch logs, semantic-convergence traces, testing lessons) are in `docs/开发历史日志.md` and `docs/archive/` (Chinese).
+
+**Quality assurance:** 17 regression suites / 357 assertions, all green — including full-library conversion smoke tests over the official 722-file collection, a 723-file output hash-baseline zero-drift assertion, and the tapered-element gold standard (jp2000) plus the fixed census of all 21 tapered files in the library. Run tests with `node tests/<script>.js` (some suites depend on local antenna libraries — see the notes in `tests/`; `i18n_lang.js` has no external dependencies).
+
+---
+
+## Referenced External Projects
+
+| Project | Use |
+|---|---|
+| **[MMANA-GAL](http://www.gal-ana.de/basicmm/)** (Alexandre Schewelew et al.) | Defines the .maa format (official manual); the official example library (722 files) serves as the full regression corpus for parsing and conversion |
+| **4NEC2** (Arie Voors) | The .nec working baseline; its Ground.txt preset table (27 soil entries) was transcribed as the M2N ground-preset dropdown |
+| **OpenNEC** / NEC-2 documentation | Reference for the GM rotation matrix (order R = Rz·Ry·Rx); several field-semantic errors in its .maa format description were corrected by this project's census (see `docs/MAA file format (corrected).md`) |
+| MMANA-GAL official ANT library (722 files) + community antenna collections (935 files) | The census basis for .maa variants/designators/load forms/taper-block distribution (the format reference is written from full censuses) |
+| W8BYA Collinear 7 MHz, jp2000_147.maa and other community models | Gold-standard regression samples |
+
+> This is an independent tool, not affiliated with MMANA-GAL / 4NEC2 / OpenNEC; all names and trademarks belong to their respective authors.
+
+---
+
+## Project Structure & Extending
+
+```
+index.html            # SPA entry (double-click to run)
+assets/               # Icons (4nec2.ico / MMANA.ico)
+css/style.css         # Styles (language toggle / cards / panels)
+js/
+  state.js            # Global N2M namespace and state
+  i18n.js             # i18n mechanism (L/LF dual-view rendering, language switching)
+  i18n/zh.js|en.js    # Standalone language packs (pure data, directly editable)
+  utils.js            # Expression evaluation, designator positioning (pure functions)
+  geometry.js         # GW/GX/GM geometry collection
+  extract.js          # NEC parsing (N2M direction)
+  maa2nec/            # .maa parsing / taper rebuild / symbol derivation / NEC output (M2N direction)
+  convert.js          # .maa output orchestration (N2M direction)
+  app.js              # UI events and flow
+tests/                # 17 regression suites
+docs/                 # Format docs (authoritative .maa reference) / release archives / history log / security audit
+backups/              # Batch snapshots and output hash baselines
+```
+
+**Adding a UI language:** copy `js/i18n/en.js` → `js/i18n/<code>.js`, adjust `meta` and translate the entries (incomplete translations fall back to English automatically), then add one line `<script src="js/i18n/<code>.js">` in `index.html` — `node tests/i18n_lang.js` automatically validates key-set alignment.
+
+**Format documentation:** the complete authoritative .maa reference (dual variants / field semantics / taper definitions / parser checklist) is `docs/MAA format concise reference.md`, with its companion `docs/MAA file format (corrected).md`.
+
+---
+
+## License & Acknowledgements
+
+This project is released under the **MIT License** (see [LICENSE](LICENSE)). Thanks to the MMANA-GAL and 4NEC2 communities for their accumulated format knowledge, and to all the antenna-model authors whose files served as test corpora.
+
+Author: BG5TOX · Version v0.5 · 2026-09

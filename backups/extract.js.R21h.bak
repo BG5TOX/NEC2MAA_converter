@@ -1,0 +1,305 @@
+// extract.js — 提取层（自 v02 extractFromNec L644-907 拆分迁移）
+// 拆分策略（较实施方案原粒度收窄, 按红线"逐字搬运优先"调整）:
+//   三大块 (首遍头卡循环/EX 循环/LD 循环) 的循环体逐字搬运, 仅以函数签名参数化局部变量;
+//   GN/FR/未知卡等分支保持在内联循环 (共享 symbols/局部状态过多, 硬拆引入行为风险)。
+// 依赖: state.js (N2M.$/N2M.state), utils.js (evalExpr/getMmanaPos/formatNum/hasChinese), geometry.js (collectWires)。
+// 告警顺序 (行为契约, 勿改): GM 提示 → groundWarning → geomCards → frSweep → unknownCards → TL
+//   → failedLD → ld1Notes → ld5Notes → [exNotes 在 hasLD 块外!] → fuzzyPosition。
+
+    const validNecCards = new Set([
+        'CM','CE','GW','GX','GE','GN','EX','FR','LD','SY','GS',
+        'EK','EN','PT','RP','TL','NT','PQ','PL','NE','NH',
+        'KH','XQ','GA','GH','GM','GR','SP','SM','GD','WG',
+        'CW','LC','NX','GC','GF'
+    ]);
+
+    // 头卡首遍: CM/SY/FR/GN/TL/LD标记/几何卡告警/未知卡收集 (v02 L661-705 逐字)
+    function parseHeaderCards(lines, symbols, validNecCards) {
+        let extractedCMs = [];
+        let unknownCardsFound = new Set();
+        let fuzzyPositionWarnings = [];
+        let geomCardWarnings = [];
+        let header = { hasLD: false, hasTL: false, rawFreqStr: "", groundValue: "0", groundWarning: "", frSweepNote: "" };
+
+        for (let line of lines) {
+            let cleanLine = line.trim().toUpperCase();
+            if (cleanLine.length === 0 || cleanLine.startsWith('\'') || cleanLine.startsWith('!') || cleanLine.startsWith('*')) continue;
+
+            let parts = cleanLine.split(/[\s,]+/).filter(Boolean);
+            if (parts.length === 0) continue;
+
+            let cardPrefix = parts[0];
+
+            if (cardPrefix.length === 2 && /^[A-Z]{2}$/.test(cardPrefix) && !validNecCards.has(cardPrefix)) {
+                unknownCardsFound.add(cardPrefix);
+            } else if (!validNecCards.has(cardPrefix) && !symbols.hasOwnProperty(cardPrefix)) {
+                if (cardPrefix !== '###') unknownCardsFound.add(cardPrefix);
+            }
+
+            if (cardPrefix === 'CM') {
+                let cmText = line.substring(2).trim();
+                if (!hasChinese(cmText) && cmText.length > 0) extractedCMs.push(cmText);
+            } else if (cardPrefix === 'SY') {
+                let paramParts = cleanLine.substring(2).split('=');
+                if (paramParts.length >= 2) symbols[paramParts[0].trim()] = paramParts[1].split('\'')[0].split('!')[0].trim();
+            } else if (cardPrefix === 'FR') {
+                if (parts.length >= 6) header.rawFreqStr = parts[5];
+                let frSteps = parts.length > 2 ? (parseInt(evalExpr(parts[2], symbols)) || 0) : 0;
+                if (frSteps > 1) header.frSweepNote = `源文件为扫频文件（FR 步进数=${frSteps}），已仅取起始频率 F1。`;
+            } else if (cardPrefix === 'GN') {
+                if (parts.length >= 2) {
+                    let gnType = parseInt(evalExpr(parts[1], symbols));
+                    if (gnType === -1) header.groundValue = "0";
+                    else if (gnType === 0) header.groundValue = "2";
+                    else if (gnType === 1) header.groundValue = "1";
+                    else if (gnType === 2) {
+                        header.groundValue = "2";
+                        header.groundWarning = "NEC GN 2 (Sommerfeld-Norton 真实地面) 已降级映射为 MMANA 真实地面(2, MININEC)——MMANA 不支持 S-N 算法，仿真结果可能有差异，请人工核查。";
+                    }
+                }
+            } else if (cardPrefix === 'TL') {
+                header.hasTL = true;
+            } else if (cardPrefix === 'LD') {
+                header.hasLD = true;
+            } else if (cardPrefix === 'GA' || cardPrefix === 'GH' || cardPrefix === 'GR' || cardPrefix === 'SP' || cardPrefix === 'SM') {
+                let geoDesc = { GA: 'GA (圆弧)', GH: 'GH (螺旋)', GR: 'GR (圆柱阵列)', SP: 'SP (表面贴片)', SM: 'SM (表面网格)' }[cardPrefix];
+                header.geomCardWarnings.push(geoDesc);
+            }
+        }
+
+        return { extractedCMs, unknownCardsFound, fuzzyPositionWarnings, geomCardWarnings, header };
+    }
+
+    // EX 全类型解析 (v02 L755-793 循环体逐字; type 策略: 0/5/6 映射, 6 加电流→电压近似告警, 5 加连接点提示, 1/2/3/4 丢弃+告警)
+    function parseExcitation(lines, wires, symbols, parsedSources, exNotes, fuzzyPositionWarnings) {
+        let unsupportedErrors = N2M.state.unsupportedErrors;
+        for (let line of lines) {
+            let cleanLine = line.trim().toUpperCase();
+            let parts = cleanLine.split(/[\s,]+/).filter(Boolean);
+            if (parts[0] === 'EX' && parts.length >= 6) {
+                let type = parseInt(evalExpr(parts[1], symbols));
+                if (type === 0 || type === 5 || type === 6) {
+                    let tag = parseInt(evalExpr(parts[2], symbols));
+                    let segStr = parts[3];
+                    let realVal = parts.length > 5 ? evalExpr(parts[5], symbols) : 0;
+                    let imagVal = parts.length > 6 ? evalExpr(parts[6], symbols) : 0;
+
+                    let mag = Math.sqrt(realVal * realVal + imagVal * imagVal);
+                    let phase = Math.atan2(imagVal, realVal) * 180 / Math.PI;
+
+                    if (Math.abs(mag) < 1e-6) mag = 0;
+                    if (Math.abs(phase) < 1e-6) phase = 0;
+
+                    let wireIdx = wires.findIndex(w => w.tag === tag);
+                    if (wireIdx !== -1) {
+                        let ns = wires[wireIdx].ns;
+                        let posLetter = getMmanaPos(tag, segStr, ns, symbols, fuzzyPositionWarnings);
+                        parsedSources.push(`w${wireIdx + 1}${posLetter}, ${formatNum(mag)}, ${formatNum(phase)}`);
+                        if (type === 6) {
+                            exNotes.push(`[提示] Tag ${tag} EX 6 电流源(${formatNum(mag)}A∠${formatNum(phase)}°) 已按数值直接映射为 MMANA 电压源(${formatNum(mag)}V∠${formatNum(phase)}°)——MMANA 仅支持电压源，馈电点阻抗/电流语义有差异，请人工核查。`);
+                            unsupportedErrors.push(`EX 6 current source -> voltage source (approximate, verify in MMANA): ${line.trim()}`);
+                        }
+                        if (type === 5) {
+                            exNotes.push(`[提示] Tag ${tag} EX 5 电荷不连续电压源(段连接点) 已按普通电压源映射到 ${segStr} 段——其真正位置在平行等长段连接处，请人工核查。`);
+                        }
+                    }
+                } else if (type === 1 || type === 2 || type === 3) {
+                    exNotes.push(`[警告] EX ${type} 入射平面波激励在 MMANA 中无对应概念，已忽略——MMANA 仅支持馈电点激励源。`);
+                    unsupportedErrors.push(`EX ${type} plane-wave excitation dropped (no MMANA equivalent): ${line.trim()}`);
+                } else if (type === 4) {
+                    exNotes.push(`[警告] EX 4 元电流源(空间点源) 在 MMANA 中无对应概念，已忽略。`);
+                    unsupportedErrors.push(`EX 4 elementary current source dropped: ${line.trim()}`);
+                }
+            }
+        }
+    }
+
+    // LD 手册七类型解析 + 告警 (v02 L795-893 逐字; exNotes 告警块在 hasLD 外—由编排函数负责)
+    function parseLoads(lines, wires, symbols, parsedFreq, showPrompts) {
+        let parsedLoads = [];
+        let failedLDMsgs = [];
+        let ld1Notes = [];
+        let ld5Notes = [];
+        let fuzzyPositionWarnings = [];
+        let unsupportedErrors = N2M.state.unsupportedErrors;
+
+        for (let line of lines) {
+            let cleanLine = line.trim().toUpperCase();
+            let parts = cleanLine.split(/[\s,]+/).filter(Boolean);
+            if (parts[0] === 'LD' && parts.length >= 4) {
+                let type = parseInt(evalExpr(parts[1], symbols));
+                let tag = parseInt(evalExpr(parts[2], symbols));
+                let segStr = parts[3];
+                let p1 = parts.length > 5 ? evalExpr(parts[5], symbols) : 0;
+                let p2 = parts.length > 6 ? evalExpr(parts[6], symbols) : 0;
+                let p3 = parts.length > 7 ? evalExpr(parts[7], symbols) : 0;
+
+                let wireIdx = wires.findIndex(w => w.tag === tag);
+                if (wireIdx !== -1) {
+                    let mmanaIdx = wireIdx + 1;
+                    let ns = wires[wireIdx].ns;
+
+                    let posLetter = 'c';
+                    let pureSegVal = evalExpr(segStr.replace('%', ''), symbols);
+
+                    if (pureSegVal === 0 && !segStr.includes('%')) {
+                        posLetter = 'c';
+                        fuzzyPositionWarnings.push(`[警告] LD负载 (Tag ${tag}) 为整段分布负载(seg=0)，已默认映射为中心单点(c)。`);
+                    } else {
+                        posLetter = getMmanaPos(tag, segStr, ns, symbols, fuzzyPositionWarnings);
+                    }
+
+                    let pos = `w${mmanaIdx}${posLetter}`;
+                    if (type === 1) {
+                        let qVal = 0;
+                        if (parsedFreq > 0 && p1 > 0) {
+                            let freqHz = parsedFreq * 1e6;
+                            if (p2 > 0) qVal = (2 * Math.PI * freqHz * p2) / p1;
+                            else if (p3 > 0) qVal = 1 / (2 * Math.PI * freqHz * p3 * p1);
+                        }
+                        parsedLoads.push(`${pos}, 0, ${formatNum(p2 * 1e6)}, ${formatNum(p3 * 1e12)}, ${formatNum(qVal)}`);
+                    } else if (type === 3) {
+                        parsedLoads.push(`${pos}, 1, ${formatNum(p1)}, ${formatNum(p2)}`);
+                    } else if (type === 2) {
+                        if (parsedFreq > 0) {
+                            let w0 = 2 * Math.PI * parsedFreq * 1e6;
+                            let gR = p1 > 0 ? 1 / p1 : 0;
+                            let bSus = (p2 > 0 ? -1 / (w0 * p2) : 0) + (p3 > 0 ? w0 * p3 : 0);
+                            let den = gR * gR + bSus * bSus;
+                            if (den < 1e-30) {
+                                ld1Notes.push(`[错误] Tag ${tag} 并联RLC在 F1 处呈开路(纯谐振)，无法等效为串联负载，已忽略。`);
+                                unsupportedErrors.push(`LD 2 parallel-open unmapped: ${line.trim()}`);
+                            } else {
+                                let rs = gR / den;
+                                let xs = -bSus / den;
+                                parsedLoads.push(`${pos}, 1, ${formatNum(rs)}, ${formatNum(xs)}`);
+                                ld1Notes.push(`[提示] Tag ${tag} 并联RLC(R=${p1}Ω, L=${p2}H, C=${p3}F) 已按 F1=${parsedFreq}MHz 单频等效为串联 ${formatNum(rs)}+j${formatNum(xs)}Ω —— 仅在该频点严格等效，扫频时请人工核查。`);
+                                unsupportedErrors.push(`LD 2 parallel->series @F1=${parsedFreq}MHz (${formatNum(rs)}+j${formatNum(xs)}Ω): ${line.trim()}`);
+                            }
+                        } else {
+                            ld1Notes.push(`[警告] Tag ${tag} 并联RLC需要工作频率才能等效，但源文件无有效 FR 卡 —— 已忽略，请手填频率后点"重新提取"。`);
+                            unsupportedErrors.push(`LD 2 no-frequency unmapped: ${line.trim()}`);
+                        }
+                    } else if (type === 4) {
+                        let gr = p1, gb = p2;
+                        let den = gr * gr + gb * gb;
+                        if (Math.abs(den) < 1e-30) {
+                            ld1Notes.push(`[错误] Tag ${tag} 并联导纳(G=${p1}S, B=${p2}S) 呈开路(全零)，无法等效，已忽略。`);
+                            unsupportedErrors.push(`LD 4 admittance-open unmapped: ${line.trim()}`);
+                        } else {
+                            let rs = gr / den;
+                            let xs = -gb / den;
+                            parsedLoads.push(`${pos}, 1, ${formatNum(rs)}, ${formatNum(xs)}`);
+                            ld1Notes.push(`[提示] Tag ${tag} 并联导纳(G=${p1}S, B=${p2}S) 已转换为串联阻抗 ${formatNum(rs)}+j${formatNum(xs)}Ω（严格等效，与频率无关）。`);
+                            unsupportedErrors.push(`LD 4 admittance->impedance (${formatNum(rs)}+j${formatNum(xs)}Ω): ${line.trim()}`);
+                        }
+                    } else if (type === 5) {
+                        ld5Notes.push(`[提示] Tag ${tag} LD 5 导线电导率(${p1} S/m)无 .maa 对应字段，已忽略 —— 请在 MMANA 中打开文件后手动设置线材质（参考：铜≈5.8e7，铝≈3.5e7 S/m）。`);
+                        unsupportedErrors.push(`LD 5 conductivity (no .maa field, set wire material in MMANA): ${line.trim()}`);
+                    } else {
+                        let typeDesc = "未知类型";
+                        if (type === 0) typeDesc = "串联RLC(每单位长Ω/m)";
+                        else if (type === 6) typeDesc = "LC陷波器 (4nec2)";
+                        else if (type === 7) typeDesc = "绝缘线 (4nec2)";
+
+                        failedLDMsgs.push(`- 标号 ${tag} (类型 ${type}: ${typeDesc})`);
+                        unsupportedErrors.push(`LD Type ${type} (${typeDesc}) unmapped: ${line.trim()}`);
+                    }
+                }
+            }
+        }
+
+        return { parsedLoads, failedLDMsgs, ld1Notes, ld5Notes, fuzzyPositionWarnings };
+    }
+
+    // 编排函数 (v02 extractFromNec L644-907, 控制流与告警顺序逐字保持)
+    function extractFromNec(text, showPrompts = false) {
+        const lines = text.split('\n');
+        let symbols = {};
+        let wires = [];
+
+        N2M.state.extractedCMs = [];
+        N2M.state.unsupportedErrors = [];
+
+        let { extractedCMs, unknownCardsFound, fuzzyPositionWarnings, geomCardWarnings, header } = parseHeaderCards(lines, symbols, validNecCards);
+        N2M.state.extractedCMs = extractedCMs;
+
+        for (let key in symbols) symbols[key] = evalExpr(symbols[key], symbols);
+
+        let parsedFreq = header.rawFreqStr ? evalExpr(header.rawFreqStr, symbols) : "";
+        updateTitleInput();
+
+        if (parsedFreq && parsedFreq > 0) {
+            N2M.$('freq').value = parseFloat(parsedFreq);
+            N2M.$('freq').style.borderColor = "var(--border-color)";
+        } else {
+            N2M.$('freq').value = "";
+            N2M.$('freq').style.borderColor = "var(--danger)";
+        }
+
+        N2M.$('g_ground').value = header.groundValue;
+
+        let gmNotes = [];
+        wires = collectWires(lines, symbols, 1.0, gmNotes);
+        if (gmNotes.length > 0 && showPrompts) {
+            alert("⚠️ GM 旋转已转换，请人工核查：\n\n" + [...new Set(gmNotes)].map((w, i) => `${i + 1}. ${w}`).join("\n\n"));
+        }
+
+        if (showPrompts) {
+            if (header.groundWarning) {
+                alert("⚠️ " + header.groundWarning);
+                N2M.state.unsupportedErrors.push(header.groundWarning);
+            }
+            if (geomCardWarnings.length > 0) {
+                let gw = `⚠️ 检测到本工具不支持的几何卡：\n\n[ ${[...new Set(geomCardWarnings)].join(', ')} ]\n\n这些卡描述的结构不会出现在输出模型中，几何不完整，请人工核查！`;
+                alert(gw);
+                N2M.state.unsupportedErrors.push(`Unsupported geometry cards (model incomplete): ${[...new Set(geomCardWarnings)].join(', ')}`);
+            }
+            if (header.frSweepNote) {
+                alert("ℹ️ " + header.frSweepNote);
+                N2M.state.unsupportedErrors.push(header.frSweepNote);
+            }
+            if (unknownCardsFound.size > 0) {
+                alert(`⚠️ 检测到无法识别的非 NEC-2 标准定义卡片或行：\n[ ${Array.from(unknownCardsFound).join(', ')} ]\n\n这些行将在转换中被完全忽略。`);
+            }
+            if (header.hasTL) alert("⚠️ 发现不兼容卡片：TL (传输线)\n\n本工具不支持转换 TL 卡，请在生成的 MMANA 文件中手动配置相应的传输线。");
+        }
+
+        let parsedSources = [];
+        let exNotes = [];
+
+        parseExcitation(lines, wires, symbols, parsedSources, exNotes, fuzzyPositionWarnings);
+
+        let ld = { parsedLoads: [], failedLDMsgs: [], ld1Notes: [], ld5Notes: [], fuzzyPositionWarnings: [] };
+        if (header.hasLD) {
+            ld = parseLoads(lines, wires, symbols, parsedFreq, showPrompts);
+
+            if (ld.failedLDMsgs.length > 0 && showPrompts) {
+                alert("🚨 部分 LD (负载) 卡片转换失败！\n\nMMANA 无法直接等效以下 NEC 负载结构（分布参数负载等）：\n" +
+                      ld.failedLDMsgs.map((w, i) => `${i + 1}. ${w}`).join("\n") +
+                      "\n\n已忽略这些行，并将其作为注释附在输出文件末尾，请核对。");
+            }
+            if (ld.ld1Notes.length > 0 && showPrompts) {
+                alert("ℹ️ 并联 RLC 负载处理说明：\n\n" + [...new Set(ld.ld1Notes)].map((w, i) => `${i + 1}. ${w}`).join("\n\n"));
+            }
+            if (ld.ld5Notes.length > 0 && showPrompts) {
+                alert("ℹ️ 导线电导率 (LD 5) 处理说明：\n\n" + [...new Set(ld.ld5Notes)].map((w, i) => `${i + 1}. ${w}`).join("\n\n"));
+            }
+        }
+
+        // fuzzyPosition 合并: EX 侧传入的是 parseHeaderCards 的数组(引用共享), LD 侧返回自己的数组
+        let allFuzzy = fuzzyPositionWarnings.concat(ld.fuzzyPositionWarnings);
+
+        if (exNotes.length > 0 && showPrompts) {
+            alert("ℹ️ 激励源 (EX) 处理说明：\n\n" + [...new Set(exNotes)].map((w, i) => `${i + 1}. ${w}`).join("\n\n"));
+        }
+
+        if (allFuzzy.length > 0 && showPrompts) {
+            alert("⚠️ 发现部分激励或负载的点位定义需要人工核查：\n\n" + [...new Set(allFuzzy)].map((w, i) => `${i + 1}. ${w}`).join("\n\n"));
+        }
+
+        if (parsedSources.length > 0) N2M.$('sourceInput').value = parsedSources.join('\n');
+        else N2M.$('sourceInput').value = "w1c, 1.0, 0.0";
+
+        N2M.$('loadInput').value = ld.parsedLoads.join('\n');
+    }

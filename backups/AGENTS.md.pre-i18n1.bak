@@ -1,0 +1,115 @@
+# NEC2MAA_converter_v05 — AGENTS.md
+
+> **v05 当前状态：项目已从 v04 完整复制建库（2026-09-04，剔除 zip 归档，88→87 文件），尚未实施任何代码改动。**
+> v0.5 需求 = v0.4 + **英文界面 + 中英文运行时切换**。可行性评估与实施方案（4 批次 / 风险清单 / 待批复决策点 D1–D4）：
+> **`docs/v0.5英文界面与中英文切换_可行性评估与实施方案.md`** —— 方案批复前不得动代码。
+> v04 = v03 + R21 锥度振子重建（2026-09-03 发布 v0.4）+ 安全审计闭环（SF1/SF2）。NEC↔MMANA-GAL 双向转换工具。双击 index.html 即用（file:// 协议，经典脚本 + N2M 全局命名空间，禁 ES modules/npm/构建链）。
+> 历史实施细节见 `docs/开发历史日志.md`；v03 版本归档见 `docs/发布归档_v0.3.md`；v0.4 归档见 `docs/发布归档_v0.4.md`；已完成的方案/评估类文档见 `docs/archive/`（含 README）。
+
+## 0. v0.5 增量需求（英文界面 + 中英文切换）— 待批复（方案 v2）
+
+- 核心决策点（详见方案文档 §8）：**D1 输出文件语言策略**（推荐 B1=UI 跟随语言、输出文件恒英文，需一次 723 hash 基线重审定；备选 B2=输出维持中文现状、hash 零破坏）；D2 切换控件（推荐语言下拉框，为未来多语言预留）+位置（向导屏右上角+工作区顶栏两处）；D3 默认语言（推荐 zh）；D4 版本号升 v0.5。
+- **语言包架构（v2 用户需求，方案 §2.1）**：机制/数据分离——`js/i18n.js` 只含机制（L()/LF()/applyI18n()/setLang()/注册表自发现），**术语与文案全部在独立语言包 `js/i18n/<code>.js`（zh.js/en.js，未来 ru.js…）中编辑**；语言包为纯数据 JS（file:// 下无法外链 JSON 的结构性约束，方案 §2.1 有说明），terms/ui/warn 三段，句子可 `{{terms.x}}` 引用术语（改一处全句同步）；新增语言=复制语言包+加一行 script 引入，机制零改动。
+- 实施批次 i18n-1（基建 i18n.js+语言包骨架+data-i18n）→ i18n-2（app.js 屏显层）→ i18n-3（N2M 告警）→ i18n-4（M2N 告警+版本标记+hash 基线重审定）；每批回归全绿后停等确认。
+- 新增测试 `tests/i18n_lang.js`（**目录扫描 js/i18n/ 全部语言包**：键集对齐/插值占位符一致/terms 引用有效/语法预检，新语言包自动纳入零维护）；测试硬编码路径 v04→v05（r21/sf1/sf2 共 5 处，随 i18n-1 批替换）。
+- i18n 关键风险：告警文案双重身份（屏显+写入输出文件）；workTitle 徽标文本节点纪律；告警 zh 渲染 diff 逐字相等验收（方案 §6 R-i18n-8）；语言包可执行性安全边界（R-i18n-10）。
+
+## 1. 工程结构
+
+```
+NEC2MAA_converter_v05/
+├── index.html          # 双屏: wizardScreen(两卡) ↔ workScreen; N2M/M2N 双参数面板
+├── css/style.css
+├── js/
+│   ├── state.js        # N2M 命名空间 + state + $(id)
+│   ├── utils.js        # evalExpr/parseGsScale/segToDesignator/formatNum/hasChinese/removeChinese
+│   ├── geometry.js     # collectWires (GW/GX/GM)
+│   ├── extract.js      # NEC 解析 (CM/SY/FR/GN/GS/EX/LD)
+│   ├── maa2nec/
+│   │   ├── maa-parser.js   # .maa 解析: 双变体/单星节头/形态判别(防 CP1251 变码)/titleAscii 门禁/$$$ 锥度捕获(R21)
+│   │   ├── maa-taper.js    # R21 新建: expandTaperedWires 锥度重建 (R21f 长度语义/中心节跨中心合并/哨兵裁断/零长跳过)
+│   │   ├── maa-symbols.js  # 半径→Dn 符号/负载逐参/一卡一参
+│   │   └── maa-writer.js  # NEC 输出: CM 头(v0.4)/GW/EX 百分比锚+锥度锚点重映射(R21)/LD 表达式/GN/FR + ASCII 终检
+│   ├── convert.js      # N2M 输出编排
+│   └── app.js          # 事件绑定/双屏切换/M2N 面板/地面预设/readFileSmart 编码探测(R21g)/弹窗排版(R21h)
+├── tests/              # 活跃回归 16 个 (含 r21/sf1/sf2); archive/ 10 个已归档+README
+├── backups/            # 批次 .bak 快照 + preR21h_723_output_hashes.json (现行 hash 基线) + README
+└── docs/               # 格式文档×2 / 发布归档 v0.3+v0.4 / 开发历史日志 / 锥度方案 / 安全审计 / Ground.txt
+```
+
+加载顺序：state → utils → geometry → extract → maa2nec（parser → **taper** → symbols → writer）→ convert → app。调用方向禁止反向。
+
+## 2. 核心行为契约（现行，改动须过回归）
+
+### N2M (4NEC2 → MMANA)
+- G/H 行输出：`{g_ground}, {add_height}, {ant_material}, {r_imp}, {az}, {el}, {x_imp}`——字段2=H 附加高度、字段3=M 材料序号(0-6)，材料/高度与地面类型无关不禁用
+- 标题双模式（文件名 `Converted from <name>.<ext>` / CM 拼接）；currentFileName 保留扩展名；下载命名 `<基名>_converted.<ext>`
+- EX 6 电流源/E 锚方向/大偏移收敛/GN2→降级告警 等告警序列逐字保持 v02 契约
+
+### M2N (MMANA → 4NEC2)
+- **R21 锥度振子重建（v04 核心，默认开启无控制项）**：`$$$` 区（英文 `Taper wire set` / 俄文变码标签，只认 `$$$` 前缀）捕获锥度组合定义 `{负半径名, Type, L/R 对…至 10 对}`；负半径导线按定义重建为多根首尾相连不同半径 GW 子段。**单位=米**（存盘统一；"R(mm)" 为 UI 语义）；**Type 文件存 0–3 = UI 编号−1**：0/2=中心向两端（对称）、1/3=起点向末端（顺序）；**R21f 对称型长度最终语义（用户给出公式裁决：jp2000 w10 = 尾1.03+L2 0.52+L1 2.0+L2 0.52+尾1.03 = 5.10 ✓）：L1=中心节整体长度（跨中心单段 `[c−L1/2, c+L1/2]`），L2~L10=细锥度节每侧长度，尾对到端点；L1/2 超半长时中心节截到整根**；中心节不拆分——馈电锚 `w?c` 落其内部 50%（jp2000: `EX 0, 26, 50%`）；尾对 `L≥99999` 哨兵延伸至线端点；未定义锥度名→fallback 1mm+告警；零长子段跳过。锚点重映射：b/c/e→原线弧长→子段定位（边界→后继子段段号 1，内部→局部百分比如 43.2%）；未锥度文件路径**字节不变**（723 文件 hash 红线：702 不变+20 库锥度文件+jp2000 允许变化）。涉及 maa-parser.js（$$$ 捕获→parsed.taperDefs）、maa-taper.js（新建，expandTaperedWires+R21c 中心合并+R21f 长度语义）、maa-writer.js（rebuilt 接入+锚点重映射+`CM Tapered wires:` 行+汇总提示）、index.html（script 引入）
+- CM 区：首条 = .maa 原标题（titleAscii 门禁 `^[\x20-\x7E]*$`，非英文/控制字符阻断进 Dropped 聚合卡）；次条 `CM Converted from <file> by NEC2MAA v0.4.` (+override 仅自定义/原标题模式)；CE 前注释英文摘要 ≤70 字符
+- GW：段 1（勾选强制分段→ceil(len·ρ/λ)，ρ 默认 25）；半径 `0.5*Dn`；z `z+h`；EX 百分比锚（c→50%/b→1/e→100%，偏移>1 收敛+告警）
+- 地面：真实地(2/-1) 默认 Average 预设（σ=5 mS/m, εr=13，applyRealGroundDefault 统一三处调用）；自由空间→σ/εr 禁用+清空+预设组隐藏；自定义未填全拦截；GN 映射 2→`GN 0,…`、-1→`GN 2,…`、1→`GN 1`
+- 文件读入：**readFileSmart 编码探测（R21g）**——纯 ASCII 直读；UTF-8 试解含 U+FFFD → TextDecoder('windows-1251') 重解码（CP1251 俄文 .maa 节头恢复真西里尔，parser 俄文关键词精确命中）；文件选择与拖放两路径
+- 弹窗多条提示排版（R21h）：编号 + 空行分隔 `N. <提示>`，共 8 处（app.js×2 + extract.js×6）
+- 输出强制纯 ASCII（writer 终检断言；非英文标题/注释丢弃+聚合警告）
+
+### UI 纪律
+- 显隐切换必须显式设目标值（'flex'/'none'），禁空串复位（wizardScreen 内联 flex 陷阱）
+- app.js 触碰 UI 状态的函数（setDirection/backToWizard 等）新增字段必须同步复位函数
+
+## 3. 风险列表与待办
+
+完整审计记录：`docs/安全审计与内存风险清单.md`（2026-09-03 S1 初版 + **v0.4 复核版**——含 R21 新代码面增量审计）
+
+| # | 风险 | 级别 | 状态 |
+|---|---|---|---|
+| S1 | evalExpr new Function 求值面（大写化隐性沙箱，重构须保留） | LOW | 接受·已文档化 |
+| S2 | evalExpr 符号键正则元字符崩溃 | MED | **已修复 SF1** |
+| S3 | writer CM 卡换行注入面 | MED 契约 | **已修复 SF2** |
+| S4 | `$$$` 计数行悬空无告警 | LOW | **已修复 SF2** |
+| M1 | GM NRPT 资源放大（总量预算 200,000） | MED | **已修复 SF1** |
+| M2 | createObjectURL 不 revoke | LOW | **已修复 SF1** |
+| M3 | readFileSmart ASCII 路径栈溢出 | MED | **已修复 SF1** |
+| R1 | NaN/Infinity 传播无门禁（含锥度子段；零/下溢半径提示） | LOW | **已修复 SF2** |
+| R2 | CM 标题卡无 70 字符截断 | LOW | **已修复 SF2** |
+| I1 | 无 CSP meta（仅未来 Web 宿主时需补） | INFO | 备查 |
+
+**审计可修复项全部闭环（SF1+SF2 共 8 项；S1 接受、I1 备查）。**
+
+- **P0：T5 4NEC2 实测**——`50%`/`100%`/`1` 段号解析、`0.5*D1`/`z+h`/`2*PI*f*L1*1E-6/Q1` 表达式求值、SY 一卡一参多卡连续性；**R21 新增**：锥度锚点子段内部百分比（如 43.2%）、子段边界整数段号（"tag, 1" 复合段字段）、多段相连 GW 台阶半径的 4NEC2 几何/电流连续性表现；`100%` 不识别则改 `99%` 兜底
+- 次级：M6 双跑回归（可选加固）；安全审计已闭环（SF1+SF2 八项修复，见 docs/安全审计与内存风险清单.md）
+
+## 4. 工作规则
+
+1. v05 项目内只允许写 `NEC2MAA_converter_v05/`；v04/v03/v02/v01/备份只读（v04 已归档为发布基线）
+2. 每批次 1–2 步，做完停等确认；改动前备份到 `backups/`（`<file>.R<n>.bak` 或 `<file>.日期_批次.bak`）
+3. 测试脚本入 `tests/`（硬编码绝对路径，重跑注意）；被取代/过时的测试移入 `tests/archive/` 并更新其 README
+4. 行为变化即失败——改动须跑相关回归套件全绿后才算完成；M2N 输出有 723 文件 hash 基线（`backups/preR21h_723_output_hashes.json`，v0.4+R21f 快照；任何输出格式变化须重新审定基线并在 r21 断言同步）
+5. **中文/UTF-8 内容文件禁用 PowerShell 文本管道改写**（Get-Content/Set-Content 编码陷阱，R21g 一次全损教训）——一律用 edit 工具
+
+## 5. 测试集（2026-09-03 SF2 后）
+
+活跃 16 个（336 断言全绿）：
+- **基础层**：m2_state_utils / m3_geometry / m4_extract / m5_convert_app（N2M 端到端）
+- **M2N 核心**：r2_t2t3_writer（writer 契约+全库 722 冒烟+ASCII）
+- **UI/流程**：r5b_backfix2（wizard flex 往返）/ r9_six_items（文件名/标题契约）
+- **功能契约**：r11_manual_ground（G/H 行+材料+拦截）/ r14_seg_params（分段）/ r16_layout_firstentry（布局+首进禁用）/ r17_note_bottom（提醒框）/ r19_title_cm（标题→首条 CM）/ r20_avg_ground_default（Average 地面默认）
+- **R21 锥度**：r21_taper_rebuild（jp2000 金标准 10→56（R21f）+ w10 用户公式 + 8EL6MW/4EL20HM/dx415tt 类型映射 + 边角矩阵 + 端到端输出 + 723 hash 基线 0 漂移 + 21 锥度文件清单固化）
+- **SF1 安全修复**：sf1_security_fixes（M3 TextDecoder / S2 键字面量化 / M2 revoke / M1 GM 预算）
+- **SF2 质量修复**：sf2_quality_fixes（S3 CM 单行净化 / R1 有限值门禁 / R2 标题 70 截断 / S4 $$$ 悬空告警 + VDP40B/jp2000 回归）
+
+运行：`node tests/<script>.js`（依赖 C:\MMANA-GALBasic3\ANT 官方 722 文件库、F:\Antenna_Models 的 W8BYA.nec、F:\Antenna\jp2000_147.maa）。
+已归档 10 个 + README 见 `tests/archive/`。
+
+## 6. 当前状态
+
+- 2026-09-04：**v05 建库**——从 v04 完整复制（剔除 zip），i18n 方案文档编制完成待批复（`docs/v0.5英文界面与中英文切换_可行性评估与实施方案.md`）；代码零改动，测试路径硬编码 v04 待 i18n-1 批替换。
+- 2026-09-03（v04 终态，本库基线）：**v0.4 发布 + 安全审计闭环 + 文档/备份收尾**——
+  - **R21 锥度振子重建**（R21a–R21f 四轮语义收敛定案：L1=中心节整体长/L2~L10=每侧长/尾对到端点；用户公式 w10=5.10 固化断言）；R21g 版本标记+CP1251 编码探测（readFileSmart）；R21h 弹窗排版（8 处编号+空行）；R21i/j 徽标位置两轮（终态：主标题右端，setDirection 只改文本节点保留徽标）
+  - **S1 安全审计**（v0.3 初版 → v0.4 复核版含 R21 增量）→ **SF1 修复 M3/S2/M2/M1 + SF2 修复 S3/R1/R2/S4**——10 项全部闭环（8 修+1 接受+1 备查）
+  - **测试终态 16 套件 336 断言全绿**（含 723 文件 hash 基线 0 漂移）；格式文档双件套核对更新（taper 完整规范+勘误 #8+§5a）；历史日志全批次入档
+  - 归档：tests/archive（10+README）、backups（R21a–R21j/SF1/SF2 快照 + 语义试错存档 + README）、docs/发布归档_v0.4.md
+- 待办：**P0 T5 4NEC2 实测**（`50%`/`100%`/`1` 段号、表达式求值、SY 连续性；R21 新增：子段内部百分比 43.2%、"tag, 1" 复合段字段、台阶半径相连 GW 电流连续性）；次级 M6 双跑回归（可选）
+- 版本史：v0.3（2026-09-02，M0–M5+R1–R20）→ v0.4（2026-09-03，R21 系列+审计闭环）

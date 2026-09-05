@@ -1,0 +1,479 @@
+// app.js — UI 层（自 v02 逐字迁移 + onclick 改 DOMContentLoaded 绑定）
+// 依赖: 全部前序文件。事件绑定顺序与 v02 行为契约一致。
+// 注意: v02 中 setTitleMode/updateTitleInput/processInputText/triggerManualExtract/downloadMaa
+//   经 onclick 或内部调用触达; v03 改为 addEventListener, 函数体逐字不变 (仅 DOM 访问经 N2M.$/N2M.state)。
+
+    function setTitleMode(mode) {
+        N2M.state.titleMode = mode;
+        N2M.$('btnModeFile').classList.toggle('active', mode === 'file');
+        N2M.$('btnModeCM').classList.toggle('active', mode === 'cm');
+        updateTitleInput();
+    }
+
+    function updateTitleInput() {
+        const titleEl = N2M.$('maaTitle');
+        if (N2M.state.titleMode === 'file') {
+            titleEl.value = N2M.state.currentFileName ? `Converted from ${N2M.state.currentFileName}` : "Converted_Antenna";
+        } else if (N2M.state.titleMode === 'cm') {
+            titleEl.value = N2M.state.extractedCMs.length > 0 ? N2M.state.extractedCMs.join(" | ") : "Converted_Antenna";
+        }
+    }
+
+    function triggerManualExtract() {
+        const text = N2M.$('inputNec').value;
+        if (!text.trim()) return alert(L('ui.alert.noInput'));
+        extractFromNec(text, true);
+        syncGroundDisabled();
+    }
+
+    function processInputText(text, filename = "") {
+        if (filename) N2M.state.currentFileName = filename;   // 保留扩展名 (R9: "Converted from 文件名.maa" 含扩展名)
+        N2M.$('inputNec').value = text;
+        if (N2M.state.direction === 'm2n') {
+            extractM2nPanel(text, true);      // 解析并填 M2N 面板
+        } else {
+            extractFromNec(text, true);
+        }
+        syncGroundDisabled();                 // 提取后按地面类型刷新 σ/εr 禁用态 (R7)
+        N2M.$('btnDownload').disabled = true;
+        N2M.$('outputMaa').value = "";
+    }
+
+    function downloadMaa() {
+        const text = N2M.$('outputMaa').value;
+        if (!text) return;
+
+        let targetFileName;
+        const baseName = N2M.state.currentFileName ? N2M.state.currentFileName.replace(/\.[^/.]+$/, "") : "Converted_Antenna";
+        if (N2M.state.direction === 'm2n') {
+            targetFileName = `${baseName}_converted.nec`;
+        } else {
+            targetFileName = `${baseName}_converted.maa`;
+        }
+
+        const blob = new Blob([text], { type: 'text/plain' });
+        const a = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        a.href = url;
+        a.download = targetFileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        // S1-M2 修复: 下载引用已被浏览器捕获, 立即释放 blob URL — 原实现从不 revoke, 每次下载泄漏一份全文
+        URL.revokeObjectURL(url);
+    }
+
+    // ==== 转换方向 (R4→R5: 向导式 + 双面板) — 语言相关文案已字典化 (i18n-2) ====
+    function setDirection(dir) {
+        N2M.state.direction = dir;
+        const isM2N = dir === 'm2n';
+        // 工作区标题配套 (R21j: 只替换文本节点, 保留主标题右端的版本徽标 — textContent 整体赋值会抹掉徽标 span)
+        const wt = N2M.$('workTitle');
+        const titleText = L(isM2N ? 'work.title.m2n' : 'work.title.n2m');
+        if (wt.firstChild) wt.firstChild.textContent = titleText;
+        else wt.insertBefore(document.createTextNode(titleText), wt.firstChild);
+        // 双面板: NEC 侧 / MAA 侧 各自显隐
+        N2M.$('panelSettingsWrap').style.display = isM2N ? 'none' : '';
+        N2M.$('m2nPanelWrap').style.display = isM2N ? '' : 'none';
+        N2M.$('btnUpload').textContent = isM2N ? L('main.upload.maa') : L('main.upload.nec');
+        N2M.$('fileInput').setAttribute('accept', isM2N ? '.maa,.mma,.txt' : '.nec,.inp,.txt');
+        N2M.$('inputNec').placeholder = isM2N ? L('main.input.ph.maa') : L('main.input.ph.nec');
+        N2M.$('btnDownload').textContent = isM2N ? L('main.download.nec') : L('main.download.maa');
+        N2M.$('outputMaa').value = '';
+        N2M.$('btnDownload').disabled = true;
+        syncGroundDisabled();   // R15: 首次进入也按当前地面类型同步 σ/εr 禁用态 (默认自由空间→禁用+灰显)
+    }
+
+    // M2N 标题模式
+    function setM2nTitleMode(mode) {
+        N2M.state.m2nTitleMode = mode;
+        N2M.$('m2nBtnModeFile').classList.toggle('active', mode === 'file');
+        N2M.$('m2nBtnModeTitle').classList.toggle('active', mode === 'title');
+        updateM2nTitle();
+    }
+    function updateM2nTitle() {
+        const st = N2M.state;
+        if (st.m2nTitleMode === 'file') {
+            N2M.$('m2nTitle').value = st.currentFileName ? `Converted from ${st.currentFileName}` : "Converted_Antenna";
+        } else {
+            N2M.$('m2nTitle').value = (st.m2nParsedTitle && st.m2nParsedTitleAscii) ? st.m2nParsedTitle : "Converted_Antenna";
+        }
+    }
+
+    // M2N 地面预设 (4NEC2 Ground.txt 同源预设; σ 单位 S/m → mS/m ×1000)
+    const M2N_GROUND_PRESETS = [
+        ['Poor', 0.001, 5], ['Moderate', 0.003, 4], ['Average', 0.005, 13], ['Good', 0.015, 17],
+        ['Dry, sandy, coastal', 0.001, 10], ['Pastoral hills, rich soil', 0.007, 17],
+        ['Medium hills and forest', 0.004, 13], ['Mountainous hills < 1000m', 0.002, 5],
+        ['Rocky, steep hills', 0.002, 13], ['Fertile land', 0.002, 10],
+        ['Rich agric. land, low hills', 0.01, 15], ['Marshy land, densily wooded', 0.0075, 12],
+        ['Marshy, forested, flat', 0.008, 12], ['Highly moist ground', 0.005, 30],
+        ['City industrial area', 0.0001, 3], ['City industr. average att.', 0.001, 5],
+        ['City industr. maximum att.', 0.0004, 3], ['Fresh water', 0.001, 80],
+        ['Fresh water 10°/100 Mhz', 0.001, 84], ['Fresh water 20°/100 Mhz', 0.005, 80],
+        ['Sea water', 5.0, 81], ['Sea water 10°, up to 1 Ghz', 4.0, 80],
+        ['Sea water 20°, up to 1 Ghz', 4.0, 73], ['Sea ice', 0.001, 4],
+        ['Polar ice', 0.0003, 3], ['Polar ice cap', 0.0001, 1], ['Artic land', 0.0005, 3]
+    ];
+
+    function initM2nGroundPreset() {
+        const sel = N2M.$('m2nGroundPreset');
+        for (const [name, sPerM, epsr] of M2N_GROUND_PRESETS) {
+            const o = document.createElement('option');
+            o.value = sPerM + ',' + epsr;
+            o.textContent = L('ui.groundPreset.item', { name, sigma: sPerM * 1000, epsr });
+            sel.appendChild(o);
+        }
+        sel.addEventListener('change', () => {
+            if (!sel.value) {                  // 自定义地面参数: σ/εr 交用户手动填入 (R11: 自动推导已移除)
+                N2M.$('m2nSigma').value = '';
+                N2M.$('m2nEpsr').value = '';
+                return;
+            }
+            const [sPerM, epsr] = sel.value.split(',').map(Number);
+            N2M.$('m2nSigma').value = sPerM * 1000;    // S/m → mS/m
+            N2M.$('m2nEpsr').value = epsr;
+        });
+        N2M.$('m2nGround').addEventListener('change', () => {
+            applyRealGroundDefault();
+            syncGroundDisabled();
+        });
+    }
+
+    // R20: 两种真实地面类型 (2=MININEC / -1=Sommerfeld-Norton) 电参数默认 Average 预设 (σ=5 mS/m, εr=13)
+    // 预设下拉同步选中 Average; 自定义(σ/εr 手改过)不覆盖 — 用户清空下拉或改值即为手动
+    function applyRealGroundDefault() {
+        const g = N2M.$('m2nGround').value;
+        const real = (g === '2' || g === '-1');
+        const sel = N2M.$('m2nGroundPreset');
+        N2M.$('m2nPresetGroup').style.display = real ? '' : 'none';
+        if (real) {
+            // 下拉默认选中 Average (0.005 S/m, 13); σ/εr 填入其值
+            sel.value = '0.005,13';
+            N2M.$('m2nSigma').value = 5;
+            N2M.$('m2nEpsr').value = 13;
+        } else {
+            sel.value = '';
+            // 自由空间: 清空 σ/εr 输入框 (R9 用户决策; R11 无提示文字需隐藏)
+            if (g === '0') {
+                N2M.$('m2nSigma').value = '';
+                N2M.$('m2nEpsr').value = '';
+            }
+        }
+    }
+
+    // 地面类型=自由空间时禁用 σ/εr 输入 (M2N; R7 用户决策; R11: N2M 侧天线材料/附加高度与地面无关, 不禁用; 自动推导已移除)
+    function syncGroundDisabled() {
+        const gM = parseInt(N2M.$('m2nGround').value) || 0;
+        const fs = (gM === 0);
+        N2M.$('m2nSigma').disabled = fs;
+        N2M.$('m2nEpsr').disabled = fs;
+    }
+
+    // 向导式开屏: 点击进入工作区
+    function enterWorkScreen(dir) {
+        setDirection(dir);
+        N2M.$('wizardScreen').style.display = 'none';
+        N2M.$('workScreen').style.display = '';
+    }
+    function backToWizard() {
+        // 注意: wizardScreen 初始内联是 display:flex — 必须显式复位 'flex',
+        // 空串 '' 会移除内联 flex 回落到 block, 卡片不再居中 (实测 bug, 2026-09-02)
+        N2M.$('wizardScreen').style.display = 'flex';
+        N2M.$('workScreen').style.display = 'none';
+        N2M.$('inputNec').value = '';
+        N2M.$('outputMaa').value = '';
+        N2M.$('btnDownload').disabled = true;
+        // 复位 setDirection 改掉的 UI 状态 (否则返回后的开屏残留 MAA 化文案/accept/面板显隐)
+        // i18n-2: 文案经 L(), 复位函数天然与语言同步
+        N2M.state.direction = 'n2m';
+        N2M.$('btnUpload').textContent = L('main.upload.nec');
+        N2M.$('fileInput').setAttribute('accept', '.nec,.inp,.txt');
+        N2M.$('inputNec').placeholder = L('main.input.ph.nec');
+        N2M.$('panelSettingsWrap').style.display = '';
+        N2M.$('m2nPanelWrap').style.display = 'none';
+    }
+
+    // 输入嗅探: .maa 特征 (*** 节头/### 注释) → 自动切 M2N
+    function sniffDirection(text) {
+        if (N2M.state.direction === 'm2n') return;
+        if (/^\s*\*\*\*[A-Za-zА-Яа-я ]+\*\*\*/m.test(text) || /^###/m.test(text)) {
+            setDirection('m2n');
+            alert(L('ui.alert.sniffMaa'));
+        }
+    }
+
+    // 渲染 M2N 结构化告警 (i18n-4: warnings 为 {key, params} 条目; m2n.nonAscii 的 parts 为嵌套条目数组)
+    function renderM2nWarnings(warnings) {
+        return warnings.map(e => {
+            if (e && typeof e === 'object' && e.key) {
+                if (e.key === 'm2n.nonAscii') {
+                    return L(e.key, { parts: (e.params.parts || []).map(p => L(p.key, p.params)).join(' + ') });
+                }
+                if (e.params && e.params.kindKey) e.params.kind = L(e.params.kindKey);
+                return L(e.key, e.params);
+            }
+            return String(e);   // 防御: 兼容残留纯字符串条目
+        });
+    }
+
+    // MAA→NEC: 解析并填充 M2N 面板 (类比 NEC 侧的 extractFromNec)
+    function extractM2nPanel(text, showPrompts = true) {
+        const parsed = parseMaa(text, N2M.state.currentFileName || 'antenna.maa');
+        if (parsed.wires.length === 0) { alert(L('ui.alert.parseFail.noWire')); return null; }
+        const st = N2M.state;
+        st.m2nParsedTitle = parsed.title;
+        st.m2nParsedTitleAscii = parsed.titleAscii;
+        st.m2nWarnings = parsed.warnings.slice();
+        st.m2nParsed = parsed;   // 缓存: 转换时若无文本改动直接复用面板编辑结果
+
+        // 频率
+        if (parsed.freq && parseFloat(parsed.freq) > 0) {
+            N2M.$('m2nFreq').value = parseFloat(parsed.freq);
+            N2M.$('m2nFreq').style.borderColor = "var(--border-color)";
+        } else {
+            N2M.$('m2nFreq').value = "";
+            N2M.$('m2nFreq').style.borderColor = "var(--danger)";
+        }
+        // 地面
+        if (parsed.ground) {
+            N2M.$('m2nGround').value = String(parsed.ground.gtype);
+            // 字段2=附加高度(H)、字段3=材料(M) — σ/εr 不来自 .maa (R11);
+            // R20: 真实地类型(2/-1)默认 Average 预设(σ=5 mS/m, εr=13), 自由空间/理想清空
+            applyRealGroundDefault();
+            syncGroundDisabled();
+            // 材料 M (字段3): 0 无损不提示; >0 提示自设材料
+            if (parsed.ground.material > 0) {
+                N2M.state.m2nWarnings.push({ key: 'm2n.materialHint', params: { m: parsed.ground.material } });
+            }
+        }
+        // 阻抗 (from G/H refZ)
+        if (parsed.ground && parsed.ground.refZ) N2M.$('m2nRImp').value = parsed.ground.refZ;
+        // 源/负载 → 可编辑文本框 (w?c, phase, mag / w?c, 0, L, C, Q 原行文本)
+        if (parsed.sources.length > 0) {
+            N2M.$('m2nSourceInput').value = parsed.sources.map(s =>
+                s.type === 'desig' ? `${s.desig}, ${s.phase}, ${s.mag}` : `${s.wire}, ${s.seg}, ${s.mag}, ${s.phase}`
+            ).join('\n');
+        } else {
+            N2M.$('m2nSourceInput').value = 'w1c, 0.0, 1.0';
+        }
+        if (parsed.loads.length > 0) {
+            N2M.$('m2nLoadInput').value = parsed.loads.filter(l => l.type === 'lc' || l.type === 'rjx').map(l =>
+                l.type === 'lc' ? `${l.desig}, 0, ${l.L_uH}, ${l.C_pF}, ${l.Q}` : `${l.desig}, 1, ${l.R}, ${l.X}`
+            ).join('\n');
+        } else {
+            N2M.$('m2nLoadInput').value = '';
+        }
+        updateM2nTitle();
+        if (showPrompts && parsed.warnings.length > 0) {
+            const rendered = renderM2nWarnings(parsed.warnings);
+            alert(L('ui.alert.m2nWarn', { n: parsed.warnings.length }) + "\n\n" +
+                [...new Set(rendered)].map((w, i) => `${i + 1}. ${w}`).join("\n\n"));
+        }
+        return parsed;
+    }
+
+    // MAA→NEC 执行: 面板参数 + 源/负载框 → NEC 输出
+    function executeConvertM2N() {
+        const text = N2M.$('inputNec').value;
+        if (!text.trim()) return alert(L('ui.alert.m2nNeedNec'));
+
+        const freqVal = N2M.$('m2nFreq').value;
+        if (!freqVal) {
+            alert(L('ui.alert.freqEmpty'));
+            N2M.$('m2nFreq').focus();
+            return;
+        }
+
+        const parsed = parseMaa(text, N2M.state.currentFileName || 'antenna.maa');
+        if (parsed.wires.length === 0) return alert(L('ui.alert.parseFail.noWire'));
+
+        // ---- 面板参数覆盖 ----
+        parsed.freq = String(parseFloat(freqVal));                     // 频率
+        const gtype = parseInt(N2M.$('m2nGround').value) || 0;
+        if (parsed.ground) {                                           // 地面
+            parsed.ground.gtype = gtype;
+            parsed.ground.sigma_mS = parseFloat(N2M.$('m2nSigma').value) || 0;   // σ 由面板(手动/预设)提供
+        } else {
+            parsed.ground = { gtype: gtype, sigma_mS: parseFloat(N2M.$('m2nSigma').value) || 0, material: 0, height: 0 };
+        }
+        // R11: 自定义地面参数未填全拦截 (真实地类型须 σ+εr 双填)
+        if (gtype === 2 || gtype === -1) {
+            const sVal = N2M.$('m2nSigma').value;
+            const eVal = N2M.$('m2nEpsr').value;
+            if (!sVal || !eVal) {
+                alert(L('ui.alert.groundNeed'));
+                N2M.$(sVal ? 'm2nEpsr' : 'm2nSigma').focus();
+                return;
+            }
+        }
+        parsed.groundEpsrManual = N2M.$('m2nEpsr').value ? parseFloat(N2M.$('m2nEpsr').value) : null;
+        parsed.axisMap = N2M.$('m2nAxisMap').value;                    // 坐标转换
+        // 阻抗 R/X (源/负载参考, 目前主要记录到 CM 摘要)
+        parsed.refZ = { R: parseFloat(N2M.$('m2nRImp').value) || 50, X: parseFloat(N2M.$('m2nXImp').value) || 0 };
+
+        // ---- R14: 分段参数 ----
+        parsed.forceSeg = N2M.$('m2nForceSeg').checked;
+        if (parsed.forceSeg) {
+            const densVal = parseFloat(N2M.$('m2nSegDensity').value);
+            if (!isFinite(densVal) || densVal <= 0) {
+                alert(L('ui.alert.forceSegNeed'));
+                N2M.$('m2nSegDensity').focus();
+                return;
+            }
+            parsed.segDensity = densVal;
+        }
+
+        // ---- 源/负载文本框覆盖 (用户可编辑) ----
+        parsed.sourceOverrides = N2M.$('m2nSourceInput').value.split('\n').map(l => l.trim()).filter(Boolean);
+        parsed.loadOverrides = N2M.$('m2nLoadInput').value.split('\n').map(l => l.trim()).filter(Boolean);
+
+        // ---- 输出标题 ----
+        // R18: 文件名模式("Converted from …")就是 writer 首行前缀本身, 传入会重复;
+        // 仅当标题为 .maa 原标题模式或用户自定义文本时才作为 override, 空则不追加
+        const titleVal = removeChinese(N2M.$('m2nTitle').value).trim();
+        parsed.cmTitleOverride = (titleVal && !/^Converted from\s/i.test(titleVal)) ? titleVal : '';
+
+        let nec;
+        try {
+            nec = writeMaaToNec(parsed, N2M.state.currentFileName || 'antenna.maa');
+        } catch (e) {
+            return alert(L('ui.alert.convertFail', { msg: e.message }));
+        }
+
+        N2M.state.m2nWarnings = parsed.warnings.slice();
+        if (parsed.warnings.length > 0) {
+            const rendered = renderM2nWarnings(parsed.warnings);
+            alert(L('ui.alert.m2nConvertWarn', { n: parsed.warnings.length }) + "\n\n" +
+                [...new Set(rendered)].map((w, i) => `${i + 1}. ${w}`).join("\n\n"));
+        }
+
+        N2M.$('outputMaa').value = nec;
+        N2M.$('btnDownload').disabled = false;
+    }
+
+    // ==== R21g: 编码探测读取 ====
+    // CP1251 俄文 .maa (jp2000 等) 被 FileReader.readAsText 默认 UTF-8 读法解码 → 节头/注释变码 (乱码)。
+    // 策略: 先按 UTF-8 解码; 若含替换字符 U+FFFD (非法 UTF-8 序列的铁证) 则改按 windows-1251 重解码。
+    // ASCII 内容 (英文 .nec/.maa 主体) 两种编码解码结果一致, 零影响。
+    function readFileSmart(file, callback) {
+        const reader = new FileReader();
+        reader.onload = function(evt) {
+            const buf = new Uint8Array(evt.target.result);
+            // 快速路径: 纯 ASCII (无 >=0x80 字节) → TextDecoder 直解 (ASCII 是 UTF-8 子集, 恒无损恒无 U+FFFD)
+            //   (S1-M3 修复: 原实现用 String.fromCharCode.apply(buf) — 参数列表上限致 200KB 即栈溢出)
+            let hasHigh = false;
+            for (let i = 0; i < buf.length; i++) { if (buf[i] >= 0x80) { hasHigh = true; break; } }
+            if (!hasHigh) { callback(new TextDecoder('utf-8').decode(buf)); return; }
+            // UTF-8 试解: 出 U+FFFD → 非法 UTF-8, 改用 windows-1251 (MMANA 俄文版存盘编码)
+            const asUtf8 = new TextDecoder('utf-8').decode(buf);
+            if (asUtf8.includes('\uFFFD')) {
+                try { callback(new TextDecoder('windows-1251').decode(buf)); return; } catch (e) { /* TextDecoder 不支持时回退 */ }
+            }
+            callback(asUtf8);
+        };
+        reader.readAsArrayBuffer(file);
+    }
+
+    // ==== 事件绑定 (v02: 内联 onclick + 顶层 addEventListener; v03: 统一 DOMContentLoaded) ====
+    document.addEventListener('DOMContentLoaded', () => {
+        // v0.5 i18n: 语言恢复 + 静态文案渲染 + toggle 绑定 (D2: zh↔en toggle; i18n5fix: 仅工作区一个按钮)
+        initLang();
+        applyI18n();
+        N2M.$('langToggleWork').addEventListener('click', toggleLang);
+        // v02 onclick 五处 → 绑定
+        N2M.$('btnModeFile').addEventListener('click', () => setTitleMode('file'));
+        N2M.$('btnModeCM').addEventListener('click', () => setTitleMode('cm'));
+        N2M.$('btnReExtract').addEventListener('click', () => {
+            if (N2M.state.direction === 'm2n') {
+                const text = N2M.$('inputNec').value;
+                if (!text.trim()) return alert(L('ui.alert.noInput'));
+                sniffDirection(text);
+                const p = extractM2nPanel(text, true);
+                syncGroundDisabled();   // R7: M2N 重新提取后刷新禁用态
+                if (p) alert(L('ui.alert.parseDone', { w: p.wires.length, s: p.sources.length, l: p.loads.length }));
+            } else {
+                triggerManualExtract();
+            }
+        });
+        N2M.$('btnUpload').addEventListener('click', () => N2M.$('fileInput').click());
+        N2M.$('btnConvert').addEventListener('click', () => {
+            if (N2M.state.direction === 'm2n') {
+                const text = N2M.$('inputNec').value;
+                sniffDirection(text);
+                executeConvertM2N();
+            } else {
+                executeConvert();
+            }
+        });
+        N2M.$('btnDownload').addEventListener('click', downloadMaa);
+        // 方向切换 (R4→R5: 向导卡片 + 返回按钮)
+        N2M.$('wizN2M').addEventListener('click', () => enterWorkScreen('n2m'));
+        N2M.$('wizM2N').addEventListener('click', () => enterWorkScreen('m2n'));
+        N2M.$('btnSwitchDir').addEventListener('click', () => backToWizard());
+        // M2N 标题模式
+        N2M.$('m2nBtnModeFile').addEventListener('click', () => setM2nTitleMode('file'));
+        N2M.$('m2nBtnModeTitle').addEventListener('click', () => setM2nTitleMode('title'));
+        // M2N 地面预设
+        initM2nGroundPreset();
+
+        // R14/R15: 强制分段开关 — 未勾选: 密度禁用且不显默认值+警告常显; 勾选: 启用+空则恢复默认25+警告消失
+        const forceSegEl = N2M.$('m2nForceSeg');
+        const segDensEl = N2M.$('m2nSegDensity');
+        forceSegEl.addEventListener('change', () => {
+            const on = forceSegEl.checked;
+            segDensEl.disabled = !on;
+            N2M.$('m2nAutoSegNote').style.display = on ? 'none' : '';
+            if (on) {
+                if (!segDensEl.value) segDensEl.value = '25';   // 勾选时空值恢复默认
+            } else {
+                segDensEl.value = '';                            // 未勾选不显示默认值
+            }
+        });
+
+        // R11: σ/εr 全手动 (自动推导监听已移除; 自定义未填全拦截在 executeConvertM2N)
+
+        // v02 L390-396: 设置区改动 → 禁用下载
+        const settingsInputs = document.querySelectorAll('.settings-wrapper input, .settings-wrapper select, .settings-wrapper textarea');
+        settingsInputs.forEach(el => {
+            el.addEventListener('change', () => { N2M.$('btnDownload').disabled = true; });
+            el.addEventListener('input', () => { N2M.$('btnDownload').disabled = true; });
+        });
+
+        // R7: NEC 侧地面类型切换 → σ 禁用联动
+        N2M.$('g_ground').addEventListener('change', syncGroundDisabled);
+
+        // v02 L406-408: 输入框输入 → 禁用下载
+        N2M.$('inputNec').addEventListener('input', function() {
+            N2M.$('btnDownload').disabled = true;
+        });
+
+        // v02 L410-417: 文件选择
+        N2M.$('fileInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            // 按扩展名自动切方向 (.maa/.mma → m2n; 其他保持)
+            if (/\.(maa|mma)$/i.test(file.name) && N2M.state.direction !== 'm2n') setDirection('m2n');
+            else if (/\.nec|\.inp$/i.test(file.name) && N2M.state.direction !== 'n2m') setDirection('n2m');
+            readFileSmart(file, (text) => processInputText(text, file.name));
+            this.value = '';
+        });
+
+        // v02 L419-431: 拖放
+        const dropZone = N2M.$('inputNec');
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('drop-active'); });
+        dropZone.addEventListener('dragleave', (e) => { e.preventDefault(); dropZone.classList.remove('drop-active'); });
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('drop-active');
+            if (e.dataTransfer.files.length > 0) {
+                const file = e.dataTransfer.files[0];
+                if (/\.(maa|mma)$/i.test(file.name) && N2M.state.direction !== 'm2n') setDirection('m2n');
+                else if (/\.(nec|inp)$/i.test(file.name) && N2M.state.direction !== 'n2m') setDirection('n2m');
+                readFileSmart(file, (text) => processInputText(text, file.name));
+            }
+        });
+
+        // R4: 开屏即向导 (不预设方向; setDirection 在 enterWorkScreen 时调用)
+        N2M.state.direction = 'n2m';   // 内部默认值, setDirection 时刷新
+    });

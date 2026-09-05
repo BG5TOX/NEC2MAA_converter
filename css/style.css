@@ -1,0 +1,294 @@
+        :root {
+            --primary: #1a73e8;
+            --primary-hover: #1557b0;
+            --success: #34a853;
+            --success-hover: #2b803e;
+            --warning: #fbbc04;
+            --warning-hover: #f2a500;
+            --danger: #ea4335;
+            --bg-color: #f0f2f5;
+            --card-bg: #ffffff;
+            --border-color: #dadce0;
+            --text-main: #202124;
+            --text-muted: #5f6368;
+            --radius: 6px;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            line-height: 1.45;   /* i18n9lh: 全局显式行高 — 消除中/西文字体默认行高差 (中文雅黑~1.32 vs Segoe~1.21) 导致的整页排版高度抖动 */
+        }
+
+        .container {
+            position: relative;   /* i18n6ui: 开屏语言按钮绝对定位锚点 */
+            width: 100%;
+            max-width: 1320px;
+            background: var(--card-bg);
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        h1 {
+            font-size: 1.8rem;
+            line-height: 1.3;   /* i18n9lh: 中英标题行高一致 */
+            margin-top: 0;
+            margin-bottom: 5px;
+            color: var(--text-main);
+            text-align: center;
+        }
+        
+        .subtitle {
+            font-size: 0.9rem;
+            line-height: 1.4;   /* i18n9lh */
+            color: var(--text-muted);
+            margin-bottom: 20px;
+            text-align: center;
+            padding-bottom: 15px;
+            border-bottom: 2px solid var(--bg-color);
+        }
+
+        .settings-wrapper {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin-bottom: 15px;
+        }
+
+        @media (max-width: 900px) {
+            .settings-wrapper { grid-template-columns: repeat(2, 1fr); }
+        }
+        @media (max-width: 600px) {
+            .settings-wrapper { grid-template-columns: 1fr; }
+        }
+
+        .settings-section {
+            background: #f8f9fa;
+            padding: 10px 12px;
+            border-radius: var(--radius);
+            border: 1px solid var(--border-color);
+        }
+
+        .full-width-section { grid-column: 1 / -1; }
+
+        .settings-title {
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .controls {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px 10px;
+        }
+
+        .control-group { display: flex; flex-direction: column; }
+        .control-group.full-width { grid-column: 1 / -1; }
+
+        label {
+            font-size: 0.75rem;
+            font-weight: 500;
+            margin-bottom: 3px;
+            color: var(--text-muted);
+            white-space: nowrap;
+        }
+
+        input, select, textarea {
+            padding: 5px 6px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 0.85rem;
+            transition: border-color 0.2s;
+            width: 100%;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+        
+        textarea { font-family: monospace; }
+
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+        
+        .help-text { font-size: 0.7rem; color: #666; margin-top: 3px; line-height: 1.3; }
+        .req-star { color: var(--danger); font-weight: bold; }
+        code {
+            background: #e8eaed;
+            padding: 1px 3px;
+            border-radius: 3px;
+            color: #d93025;
+            font-family: monospace;
+        }
+
+        .title-actions { display: flex; gap: 4px; }
+        .btn-mini {
+            background: #e8eaed;
+            color: var(--text-muted);
+            border: none;
+            padding: 3px 8px;
+            font-size: 0.7rem;
+            font-family: monospace;
+            line-height: 1.4;   /* i18n9lh: 显式行高 — 按文件名/By file name 切换高度稳定 */
+        }
+.btn-mini:hover { background: #dadce0; }
+.btn-mini.active { background: var(--primary); color: white; }
+
+/* ==== 向导开屏 (R4) ==== */
+.wizard-card {
+    width: 260px; padding: 28px 22px;
+    background: white; border: 2px solid var(--border-color); border-radius: 12px;
+    cursor: pointer; text-align: center; font-family: inherit;
+    transition: all 0.18s ease; box-shadow: 0 1px 3px rgba(60,64,67,.12);
+}
+.wizard-card:hover { border-color: var(--primary); transform: translateY(-3px); box-shadow: 0 6px 18px rgba(26,115,232,.18); }
+.wizard-card .wiz-icon { font-size: 2.2rem; margin-bottom: 10px; line-height: 1; }   /* i18n9lh */
+.wizard-card .wiz-icon .wiz-logo {   /* i18n10icon: 开屏卡片软件徽标 (assets/*.ico) — 定尺寸不随语言/字体抖动 */
+    width: 40px; height: 40px; display: block; margin: 0 auto;
+    image-rendering: auto; border-radius: 4px;
+}
+.wizard-card .wiz-title { font-size: 1.1rem; font-weight: 700; color: var(--primary); margin-bottom: 8px; }
+.wizard-card .wiz-desc { font-size: 0.8rem; color: var(--text-light); line-height: 1.5; }
+.wizard-card .wiz-inline { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.wizard-card .wiz-format { font-size: 1.05rem; font-weight: 700; color: var(--text); font-family: Consolas, monospace; }
+.wizard-card .wiz-arrow { font-size: 0.72rem; color: var(--text-light); margin: 0; }
+
+        .btn-back-wizard {
+            height: 34px; line-height: 1; box-sizing: border-box;   /* i18n9lh: 中英文高度一致 */
+            padding: 0 20px; font-size: 0.85rem; font-weight: 600;
+            background: white; color: var(--primary);
+            border: 1.5px solid var(--primary); border-radius: 8px; cursor: pointer;
+            transition: all 0.15s ease; font-family: inherit;
+            display: inline-flex; align-items: center; justify-content: center;
+        }
+.btn-back-wizard:hover { background: #e8f0fe; }
+
+/* ==== v0.5 i18n: 语言切换按钮 (i18n6ui — 胶囊描边风格, 与 btn-back 协调而不同质) ==== */
+.lang-btn {
+    padding: 0 16px; font-size: 0.8rem; font-weight: 600;
+    background: var(--bg-color); color: var(--text-muted);
+    border: 1.5px solid var(--border-color); border-radius: 16px; cursor: pointer;
+    transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease; font-family: inherit; white-space: nowrap;
+    min-width: 128px;                    /* i18n8flag: 固定最小宽 — 中文/英文切换时按钮宽度不抖动 */
+    height: 30px; line-height: 1;        /* i18n9lh: 定死高度+行高1 — 中文回退字体行高差不再改变按钮高度 */
+    display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+    box-sizing: border-box;
+}
+.lang-btn:hover { color: var(--primary); border-color: var(--primary); background: #e8f0fe; }
+/* 国旗徽章 (i18n8flag): 纯 CSS 双色圆 — 无图片/emoji 依赖 (emoji 国旗在 Windows Chrome 不渲染) */
+.lang-btn .flag {
+    display: inline-block; width: 15px; height: 15px; border-radius: 50%;
+    border: 1px solid rgba(0,0,0,.15); flex: 0 0 auto; vertical-align: middle;
+    position: relative; overflow: hidden;
+}
+.lang-btn .flag.cn { background: #de2910; }                  /* 中国: 红底 */
+.lang-btn .flag.cn::after {                                   /* 大五角星位 (简化: 黄色圆点居左上) */
+    content: ""; position: absolute; top: 2px; left: 3px; width: 6px; height: 6px;
+    background: #ffde00; border-radius: 50%;
+}
+.lang-btn .flag.gb { background: #012169; }                  /* 英国: 蓝底 */
+.lang-btn .flag.gb::after {                                  /* 简化: 白/红双色横条象征米字 */
+    content: ""; position: absolute; top: 7px; left: 0; width: 100%; height: 2px; background: #c8102e;
+    box-shadow: 0 -3px 0 #ffffff, 0 3px 0 #ffffff;
+}
+/* 开屏页: 右上角悬浮 (container 定位锚点) */
+#langToggleWiz { position: absolute; top: 18px; right: 24px; }
+/* 工作区: 顶栏行内, 返回按钮上方, 留足间距 */
+#langToggleWork { margin-bottom: 10px; }
+
+.dir-badge {
+    display: inline-block; font-size: 0.7rem; font-weight: 600;
+    background: var(--primary); color: white;
+    border-radius: 10px; padding: 2px 10px; vertical-align: middle; margin-left: 6px;
+}
+
+        .main-workspace {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 5px;
+        }
+        @media (max-width: 768px) { .main-workspace { grid-template-columns: 1fr; } }
+
+        .panel { display: flex; flex-direction: column; gap: 6px; }
+
+        .action-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--bg-color);
+            padding: 6px 10px;
+            border-radius: 4px;
+        }
+        .action-bar span { font-weight: 600; font-size: 0.85rem; color: var(--text-main); line-height: 1.4; }
+
+        button.btn {
+            border: none;
+            padding: 7px 14px;
+            font-size: 0.85rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            line-height: 1;   /* i18n9lh: 恒定行高 — 导入/下载按钮中英等高 */
+        }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:hover { background: var(--primary-hover); }
+        .btn-success { background: var(--success); color: white; }
+        .btn-success:hover { background: var(--success-hover); }
+        .btn-upload { background: var(--warning); color: #000; }
+        .btn-upload:hover { background: var(--warning-hover); }
+
+        button:disabled {
+            background-color: #cccccc !important;
+            color: #666666 !important;
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+
+        .code-area {
+            width: 100%;
+            height: 320px;
+            font-family: "Courier New", Courier, monospace;
+            padding: 10px;
+            border: 2px dashed var(--border-color);
+            resize: vertical;
+            box-sizing: border-box;
+            background: #fafafa;
+            font-size: 0.85rem;
+        }
+        #outputMaa { border-style: solid; background: #fff; }
+        .drop-active { border-color: var(--primary) !important; background-color: #e8f0fe !important; border-style: solid !important; }
+
+        .convert-row { display: flex; justify-content: center; margin-top: 15px; }
+        .convert-row button { padding: 10px 30px; font-size: 1rem; }
+
+        /* ==== v0.5 i18n11copyright: 页脚 (版权+许可, 双语言; i18n12: 开屏+工作区两处) ==== */
+        .footer {
+            display: flex; align-items: center; justify-content: center; gap: 10px;
+            margin-top: 18px; padding-top: 12px;
+            border-top: 1px solid var(--border-color);
+            font-size: 0.75rem; color: var(--text-muted);
+            line-height: 1.4;   /* i18n9lh */
+        }
+        .footer-sep { color: var(--border-color); }
+        /* 开屏页脚: wizardScreen 为 flex-column + justify-content:center —
+           margin-top:auto 把页脚推到底部, 其余内容仍整体居中 */
+        #footerBarWiz { margin-top: auto; }

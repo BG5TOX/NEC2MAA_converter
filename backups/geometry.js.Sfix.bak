@@ -1,0 +1,112 @@
+// geometry.js — 几何收集层（自 v02 逐字迁移）
+// collectWires: GW/GX/GM 按文件顺序单遍处理；GM 旋转矩阵照抄 OpenNEC(R=Rz·Ry·Rx)；
+//   NRPT=I2 控制复制(0=就地, n=追加 n 个同变换副本, 每副本=原作+同一变换不累积)；平移不乘 GS。
+// 依赖: utils.js (evalExpr)。本文件不得引用 N2M/DOM。
+    // 几何收集 (GW/GX/GM 按文件顺序单遍处理，提取与转换共用，保证 tag 一致)
+    function collectWires(lines, symbols, globalScale, gmNotes) {
+        let wires = [];
+        for (let line of lines) {
+            let cleanLine = line.trim().toUpperCase();
+            let parts = cleanLine.split(/[\s,]+/).filter(Boolean);
+            if (parts[0] === 'GW' && parts.length >= 10) {
+                wires.push({
+                    tag: parseInt(evalExpr(parts[1], symbols)),
+                    ns: parseInt(evalExpr(parts[2], symbols)),
+                    x1: evalExpr(parts[3], symbols) * globalScale, 
+                    y1: evalExpr(parts[4], symbols) * globalScale, 
+                    z1: evalExpr(parts[5], symbols) * globalScale,
+                    x2: evalExpr(parts[6], symbols) * globalScale, 
+                    y2: evalExpr(parts[7], symbols) * globalScale, 
+                    z2: evalExpr(parts[8], symbols) * globalScale,
+                    rad: evalExpr(parts[9], symbols) * globalScale
+                });
+            } else if (parts[0] === 'GX' && parts.length >= 2) {
+                let itg = parts.length > 1 ? parseInt(evalExpr(parts[1], symbols)) : 0;
+                let ixx = parts.length > 2 ? parseInt(evalExpr(parts[2], symbols)) : 0;
+                let iyy = parts.length > 3 ? parseInt(evalExpr(parts[3], symbols)) : 0;
+                let izz = parts.length > 4 ? parseInt(evalExpr(parts[4], symbols)) : 0;
+                
+                let current_wires = [...wires];
+                let inc_mult = 1;
+                
+                if (ixx > 0) {
+                    let new_wires = current_wires.map(w => ({
+                        ...w, tag: w.tag + itg * inc_mult, x1: -w.x1, x2: -w.x2
+                    }));
+                    wires.push(...new_wires);
+                    current_wires = [...wires];
+                    inc_mult *= 2;
+                }
+                if (iyy > 0) {
+                    let new_wires = current_wires.map(w => ({
+                        ...w, tag: w.tag + itg * inc_mult, y1: -w.y1, y2: -w.y2
+                    }));
+                    wires.push(...new_wires);
+                    current_wires = [...wires];
+                    inc_mult *= 2;
+                }
+                if (izz > 0) {
+                    let new_wires = current_wires.map(w => ({
+                        ...w, tag: w.tag + itg * inc_mult, z1: -w.z1, z2: -w.z2
+                    }));
+                    wires.push(...new_wires);
+                }
+            } else if (parts[0] === 'GM' && parts.length >= 2) {
+                let itg = parts.length > 1 ? (parseInt(evalExpr(parts[1], symbols)) || 0) : 0;
+                let nrpt = parts.length > 2 ? (parseInt(evalExpr(parts[2], symbols)) || 0) : 0;
+                let rx = parts.length > 3 ? evalExpr(parts[3], symbols) : 0;
+                let ry = parts.length > 4 ? evalExpr(parts[4], symbols) : 0;
+                let rz = parts.length > 5 ? evalExpr(parts[5], symbols) : 0;
+                let tx = parts.length > 6 ? evalExpr(parts[6], symbols) : 0;
+                let ty = parts.length > 7 ? evalExpr(parts[7], symbols) : 0;
+                let tz = parts.length > 8 ? evalExpr(parts[8], symbols) : 0;
+                
+                if ((rx !== 0 && ry !== 0) || (ry !== 0 && rz !== 0) || (rx !== 0 && rz !== 0)) {
+                    if (gmNotes) gmNotes.push(`[提示] GM 多轴旋转(Rx=${rx}, Ry=${ry}, Rz=${rz}, 次序 X→Y→Z)已转换，建议人工核查。`);
+                }
+                
+                let d2r = Math.PI / 180;
+                let sps = Math.sin(rx * d2r), cps = Math.cos(rx * d2r);
+                let sth = Math.sin(ry * d2r), cth = Math.cos(ry * d2r);
+                let sph = Math.sin(rz * d2r), cph = Math.cos(rz * d2r);
+                let xx = cph * cth, xy = cph * sth * sps - sph * cps, xz = cph * sth * cps + sph * sps;
+                let yx = sph * cth, yy = sph * sth * sps + cph * cps, yz = sph * sth * cps - cph * sps;
+                let zx = -sth, zy = cth * sps, zz = cth * cps;
+                
+                let transform = w => ({
+                    ...w,
+                    x1: w.x1 * xx + w.y1 * xy + w.z1 * xz + tx,
+                    y1: w.x1 * yx + w.y1 * yy + w.z1 * yz + ty,
+                    z1: w.x1 * zx + w.y1 * zy + w.z1 * zz + tz,
+                    x2: w.x2 * xx + w.y2 * xy + w.z2 * xz + tx,
+                    y2: w.x2 * yx + w.y2 * yy + w.z2 * yz + ty,
+                    z2: w.x2 * zx + w.y2 * zy + w.z2 * zz + tz
+                });
+                
+                if (nrpt > 0) {
+                    // S1-M1 修复: 导线总量预算 — 原实现 nrpt×wires 无上限 (GM 0,1e8 → 5e8 对象 3s OOM 实证)
+                    //   超预算时停止扩展并告警, 保留已生成的合法部分
+                    const budget = 200000;
+                    const projected = wires.length * (nrpt + 1);
+                    if (projected > budget) {
+                        if (gmNotes) gmNotes.push(`[警告] GM 复制次数 ${nrpt} × 现有 ${wires.length} 根导线将超总量预算 ${budget}, 已停止扩展 — 模型不完整, 请人工核查源文件的 NRPT 值。`);
+                    } else {
+                        let originals = [...wires];
+                        for (let j = 1; j <= nrpt; j++) {
+                            for (let w of originals) {
+                                let c = transform(w);
+                                if (w.tag !== 0) c.tag = w.tag + j * itg;
+                                wires.push(c);
+                            }
+                        }
+                    }
+                } else {
+                    for (let i = 0; i < wires.length; i++) {
+                        wires[i] = transform(wires[i]);
+                        if (wires[i].tag !== 0) wires[i].tag += itg;
+                    }
+                }
+            }
+        }
+        return wires;
+    }

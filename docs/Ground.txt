@@ -1,0 +1,32 @@
+! Conductivity and diel-constant for differend grounds
+! Format: <Name> = <conductivity>,<dielectric_constant>
+! http://pe2bz.philpem.me.uk/Comm/-%20Antenna/Info-905-Misc/soildiel.htm
+
+Poor                        = 0.001,  5
+Moderate                    = 0.003,  4
+Average                     = 0.005, 13
+Good                        = 0.015, 17 
+Dry, sandy, coastal         = 0.001, 10
+Pastoral hills, rich soil   = 0.007, 17
+Medium hills and forest     = 0.004, 13
+Mountainous hills < 1000m   = 0.002, 5
+Rocky, steep hills          = 0.002, 13
+Fertile land                = 0.002, 10
+Rich agric. land, low hills = 0.01,  15
+Marshy land, densily wooded = 0.0075, 12
+Marshy, forested, flat      = 0.008, 12
+Highly moist ground         = 0.005, 30
+City industrial area        = 0.0001, 3
+City industr. average att.  = 0.001,  5
+City industr. maximum att.  = 0.0004, 3
+Fresh water                 = 0.001, 80
+Fresh water 10°/100 Mhz     = 0.001, 84
+Fresh water 20°/100 Mhz     = 0.005, 80
+Sea water                   = 5.0,   81 
+Sea water 10°, up to 1 Ghz  = 4.0,   80 
+Sea water 20°, up to 1 Ghz  = 4.0,   73 
+Sea ice                     = 0.001,  4
+Polar ice                   = 0.0003, 3
+Polar ice cap               = 0.0001, 1
+Artic land                  = 0.0005, 3
+<user specified>            =      ,
