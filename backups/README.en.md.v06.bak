@@ -69,11 +69,10 @@ Converts between the **4NEC2 (.nec/.inp)** and **MMANA-GAL (.maa)** antenna simu
 | v0.3 | 2026-09-01~02 | Modularization into a 9-file project (M0–M7); M2N direction established (R1 parser / R2 symbols+writer / R3–R5 dual-panel UI / R8–R20 semantic corrections and contract hardening, incl. the user-verified G/H field naming and Ground.txt-sourced ground presets) |
 | v0.4 | 2026-09-03 | **R21 tapered-element rebuild** (four semantic-convergence rounds: jp2000 gold standard 10→56 sub-sections; the w10 5.10 m user formula verdict); CP1251 detection; **security audit closed** (SF1/SF2, 8 fixes: injection sanitization / finite-value gates / resource budgets, etc.) |
 | v0.5 | 2026-09-04~05 | **Chinese/English UI with runtime switching** (i18n-1..4: standalone language packs + dual-view warnings — on-screen follows the UI language, output files stay English); 723-file hash baseline re-certification; 6 post-release UI acceptance rounds (toggle button / flag badge / line-height normalization / assets folder) |
-| v0.6 | 2026-09-20 | **NEC geometry/card parsing fixes**: GM ITS (F7) structure-range limiting + cumulative NRPT copies, GX three-plane mirrors (packed I2), GW tapered wires (GC continuation) skipped with a warning; 723-file hash baseline re-certified |
 
 Methodology details (batch logs, semantic-convergence traces, testing lessons) are in `docs/开发历史日志.md` and `docs/archive/` (Chinese).
 
-**Quality assurance:** 17 regression suites / 371 assertions, all green — including full-library conversion smoke tests over the official 722-file collection, a 723-file output hash-baseline zero-drift assertion, and the tapered-element gold standard (jp2000) plus the fixed census of all 21 tapered files in the library. Run tests with `node tests/<script>.js` (some suites depend on local antenna libraries — see the notes in `tests/`; `i18n_lang.js` has no external dependencies).
+**Quality assurance:** 17 regression suites / 357 assertions, all green — including full-library conversion smoke tests over the official 722-file collection, a 723-file output hash-baseline zero-drift assertion, and the tapered-element gold standard (jp2000) plus the fixed census of all 21 tapered files in the library. Run tests with `node tests/<script>.js` (some suites depend on local antenna libraries — see the notes in `tests/`; `i18n_lang.js` has no external dependencies).
 
 ---
 
@@ -108,7 +107,6 @@ js/
   convert.js          # .maa output orchestration (N2M direction)
   app.js              # UI events and flow
 tests/                # 17 regression suites
-tools/                # Dev-time Node scripts (bump_version.js one-command version bump; not used at runtime)
 docs/                 # Format docs (.maa format reference) / release archives / history log / security audit
 backups/              # Batch snapshots and output hash baselines
 ```
@@ -123,4 +121,4 @@ backups/              # Batch snapshots and output hash baselines
 
 This project is released under the **MIT License** (see [LICENSE](LICENSE)). Thanks to the MMANA-GAL and 4NEC2 communities for their accumulated format knowledge, and to all the antenna-model authors whose files served as test corpora.
 
-Author: BG5TOX · Version v0.6 · 2026-09
+Author: BG5TOX · Version v0.5 · 2026-09

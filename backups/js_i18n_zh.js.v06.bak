@@ -107,7 +107,7 @@ window.N2M_LANG.zh = {
         'main.output.ph': '转换成功后，结果将显示在这里...',
         'main.convert': '⚡ 执行转换 (Convert) >>',
         // —— 页脚 (i18n11copyright) ——
-        'footer.copyright': '© 2026 BG5TOX · NEC2MAA Converter v0.6',
+        'footer.copyright': '© 2026 BG5TOX · NEC2MAA Converter v0.5',
         'footer.license': '基于 MIT 许可证发布',
         // —— 动态 UI (i18n-2 批接入) ——
         'ui.alert.noInput': '请先在左侧输入代码！',

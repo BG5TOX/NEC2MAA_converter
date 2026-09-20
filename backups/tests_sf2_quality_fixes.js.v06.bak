@@ -24,13 +24,13 @@ const GOOD = 'T\n7.05\n1\n0,0,0, 1,0,0, 0.001, -1\n***Source***\n1\nw1c, 0.0, 1.
   p.cmTitleOverride = 'A\nGW 1 999 0 0 0 1 1 1 0.01';
   const nec = api.writeMaaToNec(p, 'e.maa');
   const cmLine = nec.split('\n').find(l => l.startsWith('CM Converted from'));
-  check('S3: override \\n 折叠为空格 (单行)', cmLine === 'CM Converted from e.maa by NEC2MAA v0.6. A GW 1 999 0 0 0 1 1 1 0.01', JSON.stringify(cmLine));
+  check('S3: override \\n 折叠为空格 (单行)', cmLine === 'CM Converted from e.maa by NEC2MAA v0.5. A GW 1 999 0 0 0 1 1 1 0.01', JSON.stringify(cmLine));
   check('S3: 无伪造独立 GW 卡行', !nec.split('\n').some(l => l === 'GW 1 999 0 0 0 1 1 1 0.01'), '');
   check('S3: CM 总行数不含注入行', nec.split('\n').filter(l => l.startsWith('GW ')).length === 1, '');
   // 文件名含 \n
   const p2 = api.parseMaa(GOOD, 'x\nGW 5.maa');
   const nec2 = api.writeMaaToNec(p2, 'x\nGW 5.maa');
-  check('S3: 文件名 \\n 净化', nec2.split('\n').find(l => l.startsWith('CM Converted from')) === 'CM Converted from x GW 5.maa by NEC2MAA v0.6.', JSON.stringify(nec2.split('\n').find(l => l.startsWith('CM Converted'))));
+  check('S3: 文件名 \\n 净化', nec2.split('\n').find(l => l.startsWith('CM Converted from')) === 'CM Converted from x GW 5.maa by NEC2MAA v0.5.', JSON.stringify(nec2.split('\n').find(l => l.startsWith('CM Converted'))));
 }
 
 // ===== R2: 标题卡 70 截断 =====

@@ -1,0 +1,73 @@
+CM 2m 2x2 + 0.7m 2x4 stacked Yagi
+CM Generated with SY variables + GM copy commands
+CM  --- Stack spacing variables (meters) ---
+CM  Adjust these 4 values to see different stacking results
+CM  --- 2m mother antenna (tag 1-16) ---
+CM  Copy 2m mother to 2x2 stack
+CM  Step 1: copy tag 1-16 once along Z -> creates tag 17-32
+CM  Step 2: copy tag 1-32 once along Y -> creates tag 33-64
+CM  --- 0.7m mother antenna (tag 101-107), base Z = -0.7 ---
+CM  Copy 0.7m mother to 2x4 stack
+CM  Step 1: copy tag 101-107 3 times along Z -> 4 columns (tags 108-128)
+CM  Step 2: copy tag 101-128 once along Y -> 2 rows (tags 129-156)
+CM  Loading: aluminum conductivity for all wires
+CM  Excitations (voltage sources on driven elements, all in phase)
+CM  2m driven elements: tag 1, 17, 33, 49
+CM  0.7m driven elements: tag 101, 108, 115, 122, 129, 136, 143, 150
+CM  Frequency points: 144.5 MHz and 432 MHz
+CE
+SY DY2=3.75	'2m horizontal (Y) spacing
+SY DZ2=3	'2m vertical (Z) spacing
+SY DY70=1.25	'0.7m horizontal (Y) spacing
+SY DZ70=1.25	'0.7m vertical (Z) spacing
+SY offsety2m=-DY2/2
+SY offsetz2m=-DZ2/2
+SY offsety07=-DY70*1.5
+SY offsetz07=-DZ70/2
+SY exrefx=0.3
+SY exrefz=0.2
+GW	1	1	0	-0.1656	0	0	0.1656	0	2.3815e-3
+GW	2	1	0.1045	-0.0335	0	0.0885	-0.1567	0	5.e-3
+GW	3	1	0.1045	0.0335	0	0.0885	0.1567	0	5.e-3
+GW	4	1	0.1045	-0.0335	0	0.1045	0.0335	0	5.e-3
+GW	5	1	0.153	-0.1579	0	0.153	0.1579	0	2.3815e-3
+GW	6	1	0.246	-0.1557	0	0.246	0.1557	0	2.3815e-3
+GW	7	1	0.428	-0.15025	0	0.428	0.15025	0	2.3815e-3
+GW	8	1	0.641	-0.1475	0	0.641	0.1475	0	2.3815e-3
+GW	9	1	0.888	-0.1456	0	0.888	0.1456	0	2.3815e-3
+GW	10	1	1.152	-0.1444	0	1.152	0.1444	0	2.3815e-3
+GW	11	1	1.437	-0.14225	0	1.437	0.14225	0	2.3815e-3
+GW	12	1	1.724	-0.1405	0	1.724	0.1405	0	2.3815e-3
+GW	13	1	2.014	-0.13925	0	2.014	0.13925	0	2.3815e-3
+GW	14	1	2.305	-0.13825	0	2.305	0.13825	0	2.3815e-3
+GW	15	1	2.587	-0.13775	0	2.587	0.13775	0	2.3815e-3
+GW	16	1	2.82	-0.13375	0	2.82	0.13375	0	2.3815e-3
+GM	0	0	0	0	0	0	offsety07	0	1
+GM	0	0	0	0	0	0	0	offsetz07	1
+GM	200	1	0	0	0	0	0	DZ70	1
+GM	300	3	0	0	0	0	DY70	0	1
+GW	101	1	0	-0.5055	0	0	0.5055	0	0.005
+GW	102	1	0.36	-0.489	0	0.36	0.489	0	0.005
+GW	103	1	0.6	-0.47	0	0.6	0.47	0	0.005
+GW	104	1	1.145	-0.4545	0	1.145	0.4545	0	0.005
+GW	105	1	1.82	-0.4455	0	1.82	0.4455	0	0.005
+GW	106	1	2.625	-0.445	0	2.625	0.445	0	0.005
+GW	107	1	3.245	-0.4385	0	3.245	0.4385	0	0.005
+GW	108	1	-exrefx	-0.5055	exrefz	-exrefx	0.5055	exrefz	0.005
+GW	109	1	-exrefx	-0.5055	-exrefz	-exrefx	0.5055	-exrefz	0.005
+GM	3000	1	0	0	0	0	0	DZ2	101
+GM	2000	1	0	0	0	0	DY2	0	101
+GM	0	0	0	0	0	0	offsety2m	0	101
+GM	0	0	0	0	0	0	0	offsetz2m	101
+GE	0
+GN	-1
+EK
+EX	0	102	50%	0	1	0	0
+EX	0	2102	50%	0	1	0	0
+EX	0	3102	50%	0	1	0	0
+EX	0	5102	50%	0	1	0	0
+
+
+
+FR	0	2	0	0	144.5	287.5
+EN

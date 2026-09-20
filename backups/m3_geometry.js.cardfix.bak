@@ -82,33 +82,4 @@ if (fs.existsSync(samplePath)) {
   check('样例 2M/70CM 堆叠 ITS: 文件存在', false, samplePath);
 }
 
-// === 2026-09-20 卡片解析审计修复 (GX packed I2 + GW GC 锥度) ===
-// 18. GX I2 十位=Y 镜像 (实际文件如 "GX 20 010"); 原实现把 010 当 X 标志
-w = wiresOf('GW 7 1 1 2 3 1 2 3 0.01\nGX 10 010');
-check('GX 010 → Y 镜像 (tag+10)', w.length === 2 && w[1].y1 === -2 && w[1].x1 === 1 && w[1].tag === 17, JSON.stringify(w.map(x => ({ t: x.tag, x: x.x1, y: x.y1 }))));
-// 19. GX I2 个位=Z 镜像 ("GX n 001")
-w = wiresOf('GW 7 1 1 2 3 1 2 3 0.01\nGX 10 001');
-check('GX 001 → Z 镜像 (tag+10)', w.length === 2 && w[1].z1 === -3 && w[1].tag === 17, JSON.stringify(w[1]));
-// 20. GX 011 = Y+Z 双面 → 4 根; Z 先反射 (+itg), Y 再反射 (+2·itg)
-w = wiresOf('GW 7 1 1 2 3 1 2 3 0.01\nGX 1 011');
-check('GX 011 → Y+Z 4 根 tags=[7,8,9,10]', w.length === 4 && JSON.stringify(w.map(x => x.tag)) === JSON.stringify([7, 8, 9, 10]), JSON.stringify(w.map(x => ({ t: x.tag, y: x.y1, z: x.z1 }))));
-// 21. GX 111 = 三面 → 8 根
-w = wiresOf('GW 7 1 1 2 3 1 2 3 0.01\nGX 1 111');
-check('GX 111 → 三面 8 根', w.length === 8, 'n=' + w.length);
-// 22. tag=0 为无效 tag, GX 镜像不递增 (与 GM 一致)
-w = wiresOf('GW 0 1 1 2 3 1 2 3 0.01\nGX 5 100');
-check('GX tag=0 不递增', w.length === 2 && w[1].tag === 0, JSON.stringify(w.map(x => x.tag)));
-// 23. GW 半径=0 (GC 锥度续行) → 跳过 + gcTaper 告警
-gmNotes = [];
-w = api.collectWires('GW 1 5 0 0 0 1 0 0 0\nGC 1 0.001 0.001'.split('\n'), {}, 1.0, gmNotes);
-check('GW 半径0(GC): 跳过 + gcTaper 告警', w.length === 0 && gmNotes.some(n => n.key === 'n2m.gw.gcTaper' && n.params.tag === 1 && n.params.count === 1), JSON.stringify(gmNotes));
-// 24. GW 半径空白 (9 字段) → 同样跳过+告警 (旧实现静默丢弃)
-gmNotes = [];
-w = api.collectWires('GW 1 5 0 0 0 1 0 0\nGC 1 0.001 0.001'.split('\n'), {}, 1.0, gmNotes);
-check('GW 半径空白: 跳过 + gcTaper 告警', w.length === 0 && gmNotes.some(n => n.key === 'n2m.gw.gcTaper'), JSON.stringify(gmNotes));
-// 25. 多根 GC 锥度导线聚合为 1 条告警 (count 累计)
-gmNotes = [];
-w = api.collectWires('GW 1 5 0 0 0 1 0 0 0\nGC 1 0.001 0.001\nGW 2 5 0 1 0 1 1 0 0\nGC 1 0.001 0.001'.split('\n'), {}, 1.0, gmNotes);
-check('GC 锥度聚合告警: 1 条 count=2', w.length === 0 && gmNotes.filter(n => n.key === 'n2m.gw.gcTaper').length === 1 && gmNotes[0].params.count === 2, JSON.stringify(gmNotes));
-
 console.log(`\n${pass} PASS / ${fail} FAIL`);

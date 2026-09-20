@@ -107,7 +107,7 @@ window.N2M_LANG.en = {
         'main.output.ph': 'After a successful conversion, the result will be shown here...',
         'main.convert': '⚡ Convert >>',
         // —— Footer (i18n11copyright) ——
-        'footer.copyright': '© 2026 BG5TOX · NEC2MAA Converter v0.6',
+        'footer.copyright': '© 2026 BG5TOX · NEC2MAA Converter v0.5',
         'footer.license': 'Released under the MIT License',
         // —— Dynamic UI (wired in i18n-2) ——
         'ui.alert.noInput': 'Please enter code on the left first!',
@@ -135,7 +135,6 @@ window.N2M_LANG.en = {
         'n2m.gm.multiAxis': '[Info] GM multi-axis rotation (Rx={rx}, Ry={ry}, Rz={rz}, order X→Y→Z) converted; manual review recommended.',
         'n2m.gm.budget': '[Warning] GM copy count {nrpt} × existing {n} wires would exceed the total budget {budget}; expansion stopped — model incomplete, check the NRPT value in the source file.',
         'n2m.gm.itsNotFound': '[Info] GM card ITS={its} matched no segment tag; the whole structure was transformed (NEC would abort here) — please verify.',
-        'n2m.gw.gcTaper': '[Info] {count} tapered wire(s) from GW cards with blank/zero radius (GC continuation; first tag {tag}): MMANA has no tapered-wire equivalent, so they were skipped — please handle manually.',
         'n2m.tag.pct': '[Info] Tag {tag} proportional position {pct}% → segment {seg}/{ns} (1-based).',
         'n2m.tag.overSeg': '[Error] Tag {tag}: specified segment ({seg}) exceeds total segments ({ns})! Clamped to the last segment (e).',
         'n2m.tag.underSeg': '[Error] Tag {tag}: specified segment ({seg}) is below 1! Clamped to the first segment (b).',

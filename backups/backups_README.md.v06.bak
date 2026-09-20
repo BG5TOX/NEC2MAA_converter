@@ -1,8 +1,7 @@
-# backups 目录说明（v0.6 终态，2026-09-20）
+# backups 目录说明（v0.5 终态，2026-09-05 收尾整理）
 
 ## 现行基线
-- `preR21h_723_output_hashes.json` — **723 文件输出 hash 基线（v0.6 版）**。v0.6 批重审定：全部文件因 CM 行 `by NEC2MAA v0.6.` 一次性全量变化；由 v0.6 代码重新生成，r21_taper_rebuild.js "723 全一致 0 漂移" 断言对拍对象。后续任何 M2N 输出格式变化须重新生成并同步 r21 断言。
-- `preR21h_723_output_hashes.v05baseline.json` — **v0.5 基线存档**（v0.5 标记 + 告警英文化快照）。
+- `preR21h_723_output_hashes.json` — **723 文件输出 hash 基线（v0.5 版）**。i18n-4 批重审定：全部文件因 CM 行 `by NEC2MAA v0.5.` + 告警英文化（B1）一次性全量变化；由 v0.5 代码重新生成，r21_taper_rebuild.js "723 全一致 0 漂移" 断言对拍对象。后续任何 M2N 输出格式变化须重新生成并同步 r21 断言。
 - `preR21h_723_output_hashes.v04baseline.json` — **v0.4 基线存档**（v0.4 标记 + R21f 锥度语义快照，i18n 前最后状态）。
 
 ## i18n 批次快照（v0.5，2026-09-04/05）
@@ -19,15 +18,6 @@
 | *.i18n8flag（index/css/i18n） | 修复轮 4：min-width 128px + 国旗徽章（纯 CSS gb/cn） |
 | *.i18n9lh（css） | 修复轮 5：全局 line-height 归一（按钮定高 30/34px） |
 | *.i18n10icon（index/css） | 修复轮 6：assets/ 资源夹 + 开屏卡片 ico 徽标替换 |
-
-## v0.6 批次快照（2026-09-20）
-| 文件（前缀 = 改动前状态） | 节点 |
-|---|---|
-| geometry.js.gmfix.bak | GM ITS(F7)+NRPT 累积修复前 |
-| geometry.js.cardfix.bak | GX packed I2 + GW GC 锥度修复前 |
-| js_i18n_zh.js.gmfix/cardfix.bak · js_i18n_en.js.gmfix/cardfix.bak | 语言包词条增补前 |
-| m3_geometry.js.gmfix/cardfix.bak | 几何回归断言扩充前 |
-| *.v06.bak（maa-writer / index.html / zh / en / r19 / sf2 / r21 / AGENTS / README / README.en / backups_README） | v0.6 版本标记前 |
 
 ## R21 批次快照（v0.4 继承，有效序列）
 | 文件 | 节点 |

@@ -107,7 +107,7 @@ window.N2M_LANG.zh = {
         'main.output.ph': '转换成功后，结果将显示在这里...',
         'main.convert': '⚡ 执行转换 (Convert) >>',
         // —— 页脚 (i18n11copyright) ——
-        'footer.copyright': '© 2026 BG5TOX · NEC2MAA Converter v0.6',
+        'footer.copyright': '© 2026 BG5TOX · NEC2MAA Converter v0.5',
         'footer.license': '基于 MIT 许可证发布',
         // —— 动态 UI (i18n-2 批接入) ——
         'ui.alert.noInput': '请先在左侧输入代码！',
@@ -135,7 +135,6 @@ window.N2M_LANG.zh = {
         'n2m.gm.multiAxis': '[提示] GM 多轴旋转(Rx={rx}, Ry={ry}, Rz={rz}, 次序 X→Y→Z)已转换，建议人工核查。',
         'n2m.gm.budget': '[警告] GM 复制次数 {nrpt} × 现有 {n} 根导线将超总量预算 {budget}, 已停止扩展 — 模型不完整, 请人工核查源文件的 NRPT 值。',
         'n2m.gm.itsNotFound': '[提示] GM 卡的 ITS={its} 未找到对应 tag 的线段, 已按全结构处理(NEC 原生此处会报错终止), 请人工核查。',
-        'n2m.gw.gcTaper': '[提示] GW 卡锥度振子(半径空白/为 0 的 GC 续行卡)共 {count} 根(首根 tag {tag}): MMANA 无锥度振子等价物, 已全部跳过, 请人工处理。',
         'n2m.tag.pct': '[提示] Tag {tag} 比例定位 {pct}% → 段 {seg}/{ns}（1-based）。',
         'n2m.tag.overSeg': '[错误] Tag {tag} 指定的段数({seg}) 大于总段数({ns})！已钳位到末段(e)。',
         'n2m.tag.underSeg': '[错误] Tag {tag} 指定的段数({seg}) 小于 1！已钳位到首段(b)。',
