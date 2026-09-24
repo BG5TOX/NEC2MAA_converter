@@ -25,7 +25,7 @@ function convert(fpath) {
   const lines = nec.split('\n');
   const cmIdx = lines.findIndex(l => l.startsWith('CM '));
   check('VDP40B: 首条 CM = .maa 原标题', lines[cmIdx] === 'CM VDP 40m with Bottom LOAD', lines[cmIdx]);
-  check('VDP40B: 次条 CM = Converted from', lines[cmIdx + 1] === 'CM Converted from VDP40B.MAA by NEC2MAA v0.7.', lines[cmIdx + 1]);
+  check('VDP40B: 次条 CM = Converted from', lines[cmIdx + 1] === 'CM Converted from VDP40B.MAA by NEC2MAA v0.6.', lines[cmIdx + 1]);
   check('VDP40B: CM 卡在 CE 前', lines.indexOf('CE') > cmIdx + 1, '');
   check('VDP40B: 标题未在 Converted 行重复', !lines[cmIdx + 1].includes('VDP 40m'), lines[cmIdx + 1]);
   check('VDP40B: 全文 ASCII', /^[\x20-\x7E\n]*$/.test(nec), '');
@@ -38,7 +38,7 @@ function convert(fpath) {
   const nec = api.writeMaaToNec(parsed, 'noTitle.maa');
   const lines = nec.split('\n');
   const cmIdx = lines.findIndex(l => l.startsWith('CM '));
-  check('无标题: 首条 CM = Converted from', lines[cmIdx] === 'CM Converted from noTitle.maa by NEC2MAA v0.7.', lines[cmIdx]);
+  check('无标题: 首条 CM = Converted from', lines[cmIdx] === 'CM Converted from noTitle.maa by NEC2MAA v0.6.', lines[cmIdx]);
   check('无标题: 无空标题 CM 卡', !lines.some(l => l === 'CM ' || l === 'CM'), '');
 }
 
@@ -61,7 +61,7 @@ function convert(fpath) {
   const nec = api.writeMaaToNec(parsed, 'ctl.maa');
   const lines = nec.split('\n');
   const first = lines[0];
-  check('控制字符标题: 阻断, 首条 CM = Converted from', first === 'CM Converted from ctl.maa by NEC2MAA v0.7.', JSON.stringify(first));
+  check('控制字符标题: 阻断, 首条 CM = Converted from', first === 'CM Converted from ctl.maa by NEC2MAA v0.6.', JSON.stringify(first));
   check('控制字符标题: titleAscii=false', parsed.titleAscii === false, '');
   check('控制字符标题: droppedNonAscii.title=true', parsed.droppedNonAscii.title === true, '');
   check('控制字符标题: ASCII 通过', /^[\x20-\x7E\n]*$/.test(nec), '');
@@ -75,7 +75,7 @@ function convert(fpath) {
   const lines2 = nec2.split('\n');
   const cmIdx = lines2.findIndex(l => l.startsWith('CM '));
   check('Override: 首条 CM = 原标题', lines2[cmIdx] === 'CM VDP 40m with Bottom LOAD', lines2[cmIdx]);
-  check('Override: 次条带自定义后缀', lines2[cmIdx + 1] === 'CM Converted from VDP40B.MAA by NEC2MAA v0.7. My custom title', lines2[cmIdx + 1]);
+  check('Override: 次条带自定义后缀', lines2[cmIdx + 1] === 'CM Converted from VDP40B.MAA by NEC2MAA v0.6. My custom title', lines2[cmIdx + 1]);
   check('Override: 标题只出现一次', lines2.filter(l => l.includes('VDP 40m with Bottom LOAD')).length === 1, '');
 }
 

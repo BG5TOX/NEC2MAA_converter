@@ -107,7 +107,7 @@ window.N2M_LANG.en = {
         'main.output.ph': 'After a successful conversion, the result will be shown here...',
         'main.convert': '⚡ Convert >>',
         // —— Footer (i18n11copyright) ——
-        'footer.copyright': '© 2026 BG5TOX · NEC2MAA Converter v0.7',
+        'footer.copyright': '© 2026 BG5TOX · NEC2MAA Converter v0.6',
         'footer.license': 'Released under the MIT License',
         // —— Dynamic UI (wired in i18n-2) ——
         'ui.alert.noInput': 'Please enter code on the left first!',
@@ -162,9 +162,8 @@ window.N2M_LANG.en = {
         'n2m.badLoadRow': '🚨 The following Load rows have invalid format and were removed from the output (see Warnings at the end of the file):\n\n{rows}\n\nValid format: w<wire><c/b/e>[±offset], type 0/1, numbers… (at least 4 fields)',
         'n2m.gs.unit': 'GS card unit suffix "{unit}" parsed (×{val} m).',
         'n2m.gs.bad': '[Error] GS card scale factor unparseable ({raw}): conversion will be blocked to avoid a wrong scale — please fix and retry!',
-        'n2m.gn.bad': '[Error] GN ground type unparseable ({expr}): treated as free space (0) — please verify the ground setting manually!',
         'n2m.gs.segRange': '[Note] GS segment-range scaling (I1={i1}, I2={i2}) is unsupported; this card was not applied (XNEC2C form).',
-        'n2m.alert.gm': '⚠️ Geometry/GS card parsing notes — please verify manually:',
+        'n2m.alert.gm': '⚠️ GM rotation converted — please verify manually:',
         'n2m.alert.geomCards': '⚠️ Geometry cards unsupported by this tool detected:\n\n[ {cards} ]\n\nStructures described by these cards will NOT appear in the output model; the geometry is incomplete — please verify!',
         'n2m.alert.frSweep': 'ℹ️ ',
         'n2m.alert.unknown': '⚠️ Unrecognized non-NEC-2 standard cards or lines detected:\n[ {cards} ]\n\nThese lines will be completely ignored during conversion.',

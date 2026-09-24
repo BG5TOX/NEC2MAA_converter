@@ -107,7 +107,7 @@ window.N2M_LANG.zh = {
         'main.output.ph': '转换成功后，结果将显示在这里...',
         'main.convert': '⚡ 执行转换 (Convert) >>',
         // —— 页脚 (i18n11copyright) ——
-        'footer.copyright': '© 2026 BG5TOX · NEC2MAA Converter v0.7',
+        'footer.copyright': '© 2026 BG5TOX · NEC2MAA Converter v0.6',
         'footer.license': '基于 MIT 许可证发布',
         // —— 动态 UI (i18n-2 批接入) ——
         'ui.alert.noInput': '请先在左侧输入代码！',
@@ -162,9 +162,8 @@ window.N2M_LANG.zh = {
         'n2m.badLoadRow': '🚨 以下 Load 行格式非法，已从输出中剔除（详见文末 Warnings）：\n\n{rows}\n\n合法格式: w<线号><c/b/e>[±偏移], 类型0/1, 数值…（至少4字段）',
         'n2m.gs.unit': 'GS 卡单位后缀 "{unit}" 已解析 (×{val} 米)。',
         'n2m.gs.bad': '[错误] GS 卡缩放因子无法解析（{raw}）：为避免尺度错误，转换将被阻断，请修正后重试！',
-        'n2m.gn.bad': '[错误] GN 卡地面类型无法解析（{expr}）：已按"自由空间(0)"处理，请人工核对地面设置！',
         'n2m.gs.segRange': '[提示] GS 卡段范围缩放（I1={i1}, I2={i2}）不支持，该卡未应用（XNEC2C 生成形态）。',
-        'n2m.alert.gm': '⚠️ 几何/GS 卡解析提示，请人工核查：',
+        'n2m.alert.gm': '⚠️ GM 旋转已转换，请人工核查：',
         'n2m.alert.geomCards': '⚠️ 检测到本工具不支持的几何卡：\n\n[ {cards} ]\n\n这些卡描述的结构不会出现在输出模型中，几何不完整，请人工核查！',
         'n2m.alert.frSweep': 'ℹ️ ',
         'n2m.alert.unknown': '⚠️ 检测到无法识别的非 NEC-2 标准定义卡片或行：\n[ {cards} ]\n\n这些行将在转换中被完全忽略。',

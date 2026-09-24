@@ -224,8 +224,8 @@ function near(a, b, eps = 1e-9) { return Math.abs(a - b) <= eps; }
   }
   check('全库+jp: 0 转换失败', fails.length === 0, fails.slice(0, 5).join('; '));
   check('全库+jp: ASCII 0 违例', asciiViol === 0, String(asciiViol));
-  // v0.7 基线 (由当前代码生成): 全部 723 文件应与基线一致 — 后续任何 M2N 改动造成漂移都会在此暴露
-  check('v0.7 基线: 723 文件全部一致 (0 漂移)', changed.length === 0 && unchanged === 723, `unchanged=${unchanged} changed=${changed.length}: ${changed.slice(0, 10).join(', ')}`);
+  // v0.6 基线 (由当前代码生成): 全部 723 文件应与基线一致 — 后续任何 M2N 改动造成漂移都会在此暴露
+  check('v0.6 基线: 723 文件全部一致 (0 漂移)', changed.length === 0 && unchanged === 723, `unchanged=${unchanged} changed=${changed.length}: ${changed.slice(0, 10).join(', ')}`);
   // 锥度文件清单固化: 这 21 个文件 (20 库 + jp2000) 的输出依赖 R21f 语义, 锥度语义再变时须重新审定基线
   const TAPERED_FILES = ['2DELTA20.MAA', '3EL20.MAA', '4EL20.MAA', '4EL20HM.MAA', '5EL20.MAA', '6EL10.MAA', 'dx415tt.maa', 'V-Yagi.maa', 'DL2KQ15.maa', 'DL2KQ20.maa', 'DL2KQ40.maa', 'DL2KQ80.maa', '4EL20CM.maa', 'Parasitic currents.maa', 'Short 160m  grounded GP- best.maa', 'Short 160m  grounded GP-best-1.maa', '2x6el10.maa', 'syack3el20.maa', '8EL6MW.MAA', 'jp2000_147.maa'];
   const taperedInBaseline = TAPERED_FILES.every(n => Object.keys(snap).some(k => k.replace(/\\/g, '/').endsWith('/' + n) || k.endsWith('\\' + n) || k.split('\\').pop() === n));

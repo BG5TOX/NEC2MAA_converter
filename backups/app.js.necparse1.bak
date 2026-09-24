@@ -22,29 +22,17 @@
     function triggerManualExtract() {
         const text = N2M.$('inputNec').value;
         if (!text.trim()) return alert(L('ui.alert.noInput'));
-        try {
-            extractFromNec(text, true);
-        } catch (e) {
-            console.error(e);
-            alert(L('ui.alert.parseError', { msg: e.message }));
-            return;
-        }
+        extractFromNec(text, true);
         syncGroundDisabled();
     }
 
     function processInputText(text, filename = "") {
         if (filename) N2M.state.currentFileName = filename;   // 保留扩展名 (R9: "Converted from 文件名.maa" 含扩展名)
         N2M.$('inputNec').value = text;
-        try {
-            if (N2M.state.direction === 'm2n') {
-                extractM2nPanel(text, true);      // 解析并填 M2N 面板
-            } else {
-                extractFromNec(text, true);
-            }
-        } catch (e) {
-            // 2026-09-24 审计修复: 原实现无兜底 — 解析异常直穿事件处理器, 界面无任何提示
-            console.error(e);
-            alert(L('ui.alert.parseError', { msg: e.message }));
+        if (N2M.state.direction === 'm2n') {
+            extractM2nPanel(text, true);      // 解析并填 M2N 面板
+        } else {
+            extractFromNec(text, true);
         }
         syncGroundDisabled();                 // 提取后按地面类型刷新 σ/εr 禁用态 (R7)
         N2M.$('btnDownload').disabled = true;
@@ -297,11 +285,7 @@
             return;
         }
 
-        const parsed = (() => {
-            try { return parseMaa(text, N2M.state.currentFileName || 'antenna.maa'); }
-            catch (e) { console.error(e); alert(L('ui.alert.parseError', { msg: e.message })); return null; }
-        })();
-        if (!parsed) return;
+        const parsed = parseMaa(text, N2M.state.currentFileName || 'antenna.maa');
         if (parsed.wires.length === 0) return alert(L('ui.alert.parseFail.noWire'));
 
         // ---- 面板参数覆盖 ----
@@ -406,15 +390,7 @@
                 const text = N2M.$('inputNec').value;
                 if (!text.trim()) return alert(L('ui.alert.noInput'));
                 sniffDirection(text);
-                let p;
-                try {
-                    p = extractM2nPanel(text, true);
-                } catch (e) {
-                    // 2026-09-24 审计修复: M2N 重新提取兜底 (与 N2M 侧一致)
-                    console.error(e);
-                    alert(L('ui.alert.parseError', { msg: e.message }));
-                    return;
-                }
+                const p = extractM2nPanel(text, true);
                 syncGroundDisabled();   // R7: M2N 重新提取后刷新禁用态
                 if (p) alert(L('ui.alert.parseDone', { w: p.wires.length, s: p.sources.length, l: p.loads.length }));
             } else {

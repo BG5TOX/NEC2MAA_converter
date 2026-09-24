@@ -59,9 +59,6 @@
                     else if (gnType === 2) {
                         header.groundValue = "2";
                         header.groundWarning = { key: 'n2m.gn2Degrade' };
-                    } else if (!isFinite(gnType)) {
-                        // 2026-09-24 审查修复: GN 类型求值失败 → 告警 (原静默保持默认地面类型)
-                        header.groundWarning = { key: 'n2m.gn.bad', params: { expr: parts[1] } };
                     }
                 }
             } else if (cardPrefix === 'TL') {
@@ -90,22 +87,11 @@
             if (parts[0] === 'SY') { applySyDecl(stripComment(cleanLine), symbols, null); continue; }
             if (parts[0] === 'EX' && parts.length >= 6) {
                 let type = parseInt(evalExpr(parts[1], symbols));
-                if (!isFinite(type)) {
-                    exNotes.push({ key: 'n2m.expr.evalFailed', params: { where: 'EX type', expr: parts[1] } });
-                    fileNotes.push(`EX type unparseable dropped: ${line.trim()}`);
-                    continue;
-                }
                 if (type === 0 || type === 5 || type === 6) {
                     let tag = parseInt(evalExpr(parts[2], symbols));
                     let segStr = parts[3];
                     let realVal = parts.length > 5 ? evalExpr(parts[5], symbols) : 0;
                     let imagVal = parts.length > 6 ? evalExpr(parts[6], symbols) : 0;
-                    if (!isFinite(realVal) || !isFinite(imagVal) || !isFinite(tag)) {
-                        // 2026-09-24 审查修复: 求值失败不再产出 NaN 源行 (validateLoadRows 同款门禁)
-                        exNotes.push({ key: 'n2m.expr.evalFailed', params: { where: 'EX', expr: line.trim() } });
-                        fileNotes.push(`EX excitation values unparseable dropped: ${line.trim()}`);
-                        continue;
-                    }
 
                     let mag = Math.sqrt(realVal * realVal + imagVal * imagVal);
                     let phase = Math.atan2(imagVal, realVal) * 180 / Math.PI;
@@ -277,7 +263,7 @@
 
         // 写入视图 (恒英文; 顺序: 头卡告警 → EX/LD → 几何/GS)
         if (header.groundWarning) fileWarnings.push(LF(header.groundWarning.key, header.groundWarning.params));
-        // 注: NX 告警由 collectWires 统一产出 (单一来源; 此处不再重复, 2026-09-24 审查修复)
+        if (header.multiDataset) fileWarnings.push(LF('n2m.nx.multiDataset'));
         if (geomCardWarnings.length > 0) fileWarnings.push(`Unsupported geometry cards (model incomplete): ${[...new Set(geomCardWarnings)].join(', ')}`);
         if (header.frSweepNote) fileWarnings.push(LF(header.frSweepNote.key, header.frSweepNote.params));
         for (let s of fileNotes) fileWarnings.push(s);

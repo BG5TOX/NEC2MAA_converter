@@ -1,6 +1,6 @@
 // maa-writer.js — NEC 输出层（R2）
 // v0.5 i18n-4: warnings 结构化条目 {key, params} — 屏显/告警数组视图; CM 卡输出恒英文 (B1, ASCII 终检)
-//   版本标记 v0.4 → v0.5 (D4) / v0.5 → v0.7 (v0.7 发布)
+//   版本标记 v0.4 → v0.5 (D4) / v0.5 → v0.6 (v0.6 发布)
 // 卡序: CM(头,英文摘要) → SY(一卡一参) → GW(段1, 0.5*Dn, z+h) → GE → EX(百分比锚) → LD(表达式) → GN → FR → EN
 // 强制: 纯 ASCII 输出 (终检断言); /2 一律 *0.5
 // 依赖: maa-parser.js / maa-symbols.js (同目录, 经全局函数引用)
@@ -52,7 +52,7 @@
         let cmOverride = (parsed.cmTitleOverride !== undefined && parsed.cmTitleOverride !== null)
             ? oneLine(parsed.cmTitleOverride) : '';
         if (maaTitle) out.push(`CM ${maaTitle.length > 70 ? maaTitle.slice(0, 69) + '~' : maaTitle}`);   // 第 1 条: .maa 原标题 (≤70)
-        out.push(`CM Converted from ${oneLine(fileName || 'antenna.maa')} by NEC2MAA v0.7.${cmOverride ? ' ' + cmOverride : ''}`);
+        out.push(`CM Converted from ${oneLine(fileName || 'antenna.maa')} by NEC2MAA v0.6.${cmOverride ? ' ' + cmOverride : ''}`);
         const seg = parsed.segParams;
         out.push(`CM Original: ${describeSegModes(parsed)}${seg ? ` dm1=${seg.dm1} dm2=${seg.dm2} sc=${seg.sc} ec=${seg.ec}` : ''}. Wires: ${parsed.wires.length}. Sources: ${parsed.sources.length}. Loads: ${parsed.loads.length}.`);
         if (rebuilt.expanded) {

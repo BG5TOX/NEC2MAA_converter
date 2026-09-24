@@ -1,9 +1,17 @@
-# backups 目录说明（v0.6 终态，2026-09-20）
+# backups 目录说明（v0.7 终态，2026-09-24）
 
 ## 现行基线
-- `preR21h_723_output_hashes.json` — **723 文件输出 hash 基线（v0.6 版）**。v0.6 批重审定：全部文件因 CM 行 `by NEC2MAA v0.6.` 一次性全量变化；由 v0.6 代码重新生成，r21_taper_rebuild.js "723 全一致 0 漂移" 断言对拍对象。后续任何 M2N 输出格式变化须重新生成并同步 r21 断言。
+- `preR21h_723_output_hashes.json` — **723 文件输出 hash 基线（v0.7 版）**。v0.7 批重审定：全部文件因 CM 行 `by NEC2MAA v0.7.` 一次性全量变化；由 v0.7 代码重新生成，r21_taper_rebuild.js "723 全一致 0 漂移" 断言对拍对象。后续任何 M2N 输出格式变化须重新生成并同步 r21 断言。
+- `preR21h_723_output_hashes.v06baseline.json` — **v0.6 基线存档**（v0.6 标记 + GM/GX/GW 修复快照）。
 - `preR21h_723_output_hashes.v05baseline.json` — **v0.5 基线存档**（v0.5 标记 + 告警英文化快照）。
 - `preR21h_723_output_hashes.v04baseline.json` — **v0.4 基线存档**（v0.4 标记 + R21f 锥度语义快照，i18n 前最后状态）。
+
+## v0.7 批次快照（NEC 解析审计修复，2026-09-24）
+| 文件（前缀 = 改动前状态） | 节点 |
+|---|---|
+| utils.js.necparse1.bak · geometry.js.necparse1.bak · extract.js.necparse1.bak · convert.js.necparse1.bak · app.js.necparse1.bak · zh.js.necparse1.bak · en.js.necparse1.bak | 全部审计修复改动前（批次 1 前） |
+| utils.js.necparse3.bak · geometry.js.necparse3.bak · extract.js.necparse3.bak · convert.js.necparse3.bak · app.js.necparse3.bak | 批次 3（卡片层+告警统一）完成后 |
+| index.html.v0.6bump.bak · js_i18n_zh.js.v0.6bump.bak · js_i18n_en.js.v0.6bump.bak · js_maa2nec_maa-writer.js.v0.6bump.bak · r19_title_cm.js.v0.6bump.bak · sf2_quality_fixes.js.v0.6bump.bak · r21_taper_rebuild.js.v0.6bump.bak | v0.7 版本标记前（bump_version.js 自动快照） |
 
 ## i18n 批次快照（v0.5，2026-09-04/05）
 | 文件（前缀 = 改动前状态） | 节点 |

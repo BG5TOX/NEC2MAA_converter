@@ -30,12 +30,13 @@ Converts between the **4NEC2 (.nec/.inp)** and **MMANA-GAL (.maa)** antenna simu
 
 | Category | Cards | Handling |
 |---|---|---|
-| Geometry | `GW` (straight wire), `GX` (mirror), `GM` (rotate/translate/copy) | Single pass in file order; GM implements the full multi-axis rotation matrix (R=Rz·Ry·Rx), cumulative NRPT copies and the ITS (F7) structure range limit; GX supports three-plane mirrors (packed I2); GW tapered wires (GC continuation) are skipped with a warning |
-| Geometry (warned passthrough) | `GA` `GH` `GR` `SP` `SM` | Not convertible — a clear warning is raised and manual review is advised |
-| Excitation | `EX 0/5/6` | Mapped to an MMANA voltage source; EX 6 current sources are mapped numerically with a warning; EX 1–4 (plane-wave/point sources) have no equivalent — dropped with a warning |
+| Geometry | `GW` (straight wire), `GX` (mirror), `GM` (rotate/translate/copy), `GR` (cylindrical array) | Single pass in file order; GM implements the full multi-axis rotation matrix (R=Rz·Ry·Rx), cumulative NRPT copies and the ITS (F7) structure range limit; GX supports three-plane mirrors (packed I2); GR rotates the current structure into NR copies (including the original, tag+ITGI); GW tapered wires (GC continuation) are skipped with a warning; `NS=0` generates no segments (per NEC) |
+| Geometry (warned passthrough) | `GA` `GH` `SP` `SM` `CW` | Not convertible (MMANA has no surface-patch/catenary equivalent) — a clear warning is raised and manual review is advised |
+| Excitation | `EX 0/5/6` | Mapped to an MMANA voltage source; EX 6 current sources are mapped numerically with a warning; EX 1–4 (plane-wave/point sources) have no equivalent — dropped with a warning; segment lookup supports `tag=0` absolute segment numbers and multi-wire tag groups |
 | Loads | `LD 1/2/3/4/5` | Series RLC / parallel RLC (single-frequency equivalent) / series impedance / parallel admittance (exact) / conductivity (manual setup hint); LD 0/6/7 rejected and preserved as comments |
 | Environment | `GN` (all four ground types), `FR` (sweeps take F1) | GN 2 (Sommerfeld-Norton) is downgraded to MININEC real ground with a warning |
-| Symbols | `SY` (one per card), `GS` (scaling incl. mm/cm/m/in/ft unit suffixes) | Safe expression evaluation with SIN/COS/TAN/SQRT/ABS/EXP/LOG/PI and uH/nF/pF unit literals |
+| Symbols/expressions | `SY` (multiple declarations per card, evaluated in file order), `GS` (NEC-2 sequential scaling incl. mm/cm/m/in/ft unit words) | Expressions support `^` power, SIN/COS/TAN/ATN/ASIN/ACOS (degrees), SQR/SQRT/ABS/EXP/LOG/LOG10/INT/FIX/SGN/MOD/PI, length unit words (bare / suffix / expression+unit), AWG gauges `#NN[/unit]`, leading-zero decimals, symbol-aware implicit multiplication; evaluation failures are no longer silently zeroed (skip + aggregate warning); an unparseable `GS` blocks conversion |
+| Datasets | `NX` | Multi-dataset files keep only the first dataset, with a warning (no more merging) |
 | Comments | `CM`/`CE` | Kept in the output comment section (pure-ASCII gate) |
 
 **Output .maa characteristics:** dual-variant detection; wire radii/coordinates converted to metres; source/load rows use the MMANA manual designator syntax (`w?c/b/e±offset`); auto-segmentation parameters (DM1/DM2/SC/EC) and the full 7-field G/H line (ground / additional height / material index / impedance / F-B statistics range); unsupported structures (TL transmission lines, etc.) are clearly warned about and appended to the comment tail.
@@ -70,10 +71,11 @@ Converts between the **4NEC2 (.nec/.inp)** and **MMANA-GAL (.maa)** antenna simu
 | v0.4 | 2026-09-03 | **R21 tapered-element rebuild** (four semantic-convergence rounds: jp2000 gold standard 10→56 sub-sections; the w10 5.10 m user formula verdict); CP1251 detection; **security audit closed** (SF1/SF2, 8 fixes: injection sanitization / finite-value gates / resource budgets, etc.) |
 | v0.5 | 2026-09-04~05 | **Chinese/English UI with runtime switching** (i18n-1..4: standalone language packs + dual-view warnings — on-screen follows the UI language, output files stay English); 723-file hash baseline re-certification; 6 post-release UI acceptance rounds (toggle button / flag badge / line-height normalization / assets folder) |
 | v0.6 | 2026-09-20 | **NEC geometry/card parsing fixes**: GM ITS (F7) structure-range limiting + cumulative NRPT copies, GX three-plane mirrors (packed I2), GW tapered wires (GC continuation) skipped with a warning; 723-file hash baseline re-certified |
+| v0.7 | 2026-09-24 | **NEC parsing audit fixes** (from a full 2493-file audit): expression layer (`^` power / functions / unit words / AWG gauges / leading zeros / implicit multiplication), SY multiple declarations evaluated in file order, GS NEC-2 sequential scaling with blocking on failure, GR cylindrical array implemented, card-layer tolerance (NS=0 / CW / NX / spaces inside fields / `tag=0` absolute segment numbers / glued card names), unified warnings across both paths; N2M corpus crashes 68→0, zero-length wires 27→0; 723-file hash baseline re-certified |
 
 Methodology details (batch logs, semantic-convergence traces, testing lessons) are in `docs/开发历史日志.md` and `docs/archive/` (Chinese).
 
-**Quality assurance:** 17 regression suites / 371 assertions, all green — including full-library conversion smoke tests over the official 722-file collection, a 723-file output hash-baseline zero-drift assertion, and the tapered-element gold standard (jp2000) plus the fixed census of all 21 tapered files in the library. Run tests with `node tests/<script>.js` (some suites depend on local antenna libraries — see the notes in `tests/`; `i18n_lang.js` has no external dependencies).
+**Quality assurance:** 20 regression suites / 516 assertions, all green — including full-library conversion smoke tests over the official 722-file collection, a 723-file output hash-baseline zero-drift assertion, the tapered-element gold standard (jp2000) plus the fixed census of all 21 tapered files, and **N2M corpus-wide thresholds (2493 files: 0 crashes / 0 zero-length wires / 0 GS parse failures) with 22 fixed-point files**. Run tests with `node tests/<script>.js` (some suites depend on local antenna libraries — see the notes in `tests/`; `i18n_lang.js` has no external dependencies).
 
 ---
 
@@ -102,12 +104,12 @@ js/
   i18n.js             # i18n mechanism (L/LF dual-view rendering, language switching)
   i18n/zh.js|en.js    # Standalone language packs (pure data, directly editable)
   utils.js            # Expression evaluation, designator positioning (pure functions)
-  geometry.js         # GW/GX/GM geometry collection
-  extract.js          # NEC parsing (N2M direction)
+  geometry.js         # GW/GX/GM/GR/GS geometry collection (incl. in-order SY evaluation)
+  extract.js          # NEC parsing (N2M direction; parseNec unified parse + identical warnings on both paths)
   maa2nec/            # .maa parsing / taper rebuild / symbol derivation / NEC output (M2N direction)
   convert.js          # .maa output orchestration (N2M direction)
   app.js              # UI events and flow
-tests/                # 17 regression suites
+tests/                # 20 regression suites
 tools/                # Dev-time Node scripts (bump_version.js one-command version bump; not used at runtime)
 docs/                 # Format docs (.maa format reference) / release archives / history log / security audit
 backups/              # Batch snapshots and output hash baselines
@@ -123,4 +125,4 @@ backups/              # Batch snapshots and output hash baselines
 
 This project is released under the **MIT License** (see [LICENSE](LICENSE)). Thanks to the MMANA-GAL and 4NEC2 communities for their accumulated format knowledge, and to all the antenna-model authors whose files served as test corpora.
 
-Author: BG5TOX · Version v0.6 · 2026-09
+Author: BG5TOX · Version v0.7 · 2026-09

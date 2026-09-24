@@ -11,7 +11,7 @@
 <div class="container" id="appRoot">
     <div id="wizardScreen" style="min-height:70vh; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:28px;">
         <button class="lang-btn lang-toggle" id="langToggleWiz">English</button>
-        <h1 style="margin:0;"><span data-i18n="wiz.title">天线模型格式转换工具</span> <span class="dir-badge">v0.7</span></h1>
+        <h1 style="margin:0;"><span data-i18n="wiz.title">天线模型格式转换工具</span> <span class="dir-badge">v0.6</span></h1>
         <div class="subtitle" data-i18n="wiz.subtitle">by BG5TOX &nbsp;|&nbsp; 选择转换方向开始</div>
         <div style="display:flex; gap:24px; flex-wrap:wrap; justify-content:center;">
             <button id="wizN2M" class="wizard-card">
@@ -34,7 +34,7 @@
             </button>
         </div>
         <div class="footer" id="footerBarWiz">
-            <span data-i18n="footer.copyright">© 2026 BG5TOX · NEC2MAA Converter v0.7</span>
+            <span data-i18n="footer.copyright">© 2026 BG5TOX · NEC2MAA Converter v0.6</span>
             <span class="footer-sep">|</span>
             <span data-i18n="footer.license">基于 MIT 许可证发布</span>
         </div>
@@ -43,7 +43,7 @@
     <div id="workScreen" style="display:none;">
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
         <div>
-        <h1 id="workTitle" style="margin:0; font-size:1.3rem; display:flex; align-items:center; gap:10px;">4NEC2 转 MMANA-GAL 格式转换工具 <span class="dir-badge" id="verBadge2">v0.7</span></h1>
+        <h1 id="workTitle" style="margin:0; font-size:1.3rem; display:flex; align-items:center; gap:10px;">4NEC2 转 MMANA-GAL 格式转换工具 <span class="dir-badge" id="verBadge2">v0.6</span></h1>
         <div class="subtitle" data-i18n="work.subtitle">by BG5TOX &nbsp;|&nbsp; 发布日期2026.09.04</div>
         </div>
         <div style="display:flex; flex-direction:column; align-items:flex-end; gap:0;">
@@ -304,7 +304,7 @@
     </div>
 
     <div class="footer" id="footerBar">
-        <span data-i18n="footer.copyright">© 2026 BG5TOX · NEC2MAA Converter v0.7</span>
+        <span data-i18n="footer.copyright">© 2026 BG5TOX · NEC2MAA Converter v0.6</span>
         <span class="footer-sep">|</span>
         <span data-i18n="footer.license">基于 MIT 许可证发布</span>
     </div>

@@ -91,4 +91,13 @@ check('无LD文件 EX 告警仍弹 (exNotes 块外)', alerts.some(a => a.include
 setup(`${GW21}\n${FR14}\nEN`);
 check('无源文件 → 兜底 w1c, 1.0, 0.0', elements.sourceInput.value === 'w1c, 1.0, 0.0', elements.sourceInput.value);
 
+// === 2026-09-24 审计修复: 几何卡崩溃修复 (S1-1: 原 header.geomCardWarnings TypeError) + GR 实现 ===
+let grThrew = false;
+try { setup(`${GW21}\nGR 0 6\n${FR14}\nEN`); } catch (e) { grThrew = true; }
+check('含 GR 文件: 不抛异常', !grThrew, '');
+check('含 GR 文件: 已实现 → 不再列入不支持名单', !alerts.some(a => a.includes('GR (cylindrical array)')), JSON.stringify(alerts));
+setup(`${GW21}\nSP 0 1 0 0 0 1 0 0 0 1 1 0\nGH 1 15 1.54 -0.77 0.15 0.15 0.15 0.15 0.0025\n${FR14}\nEN`);
+check('含 SP/GH 文件: 不抛异常 + 双卡告警', alerts.some(a => a.includes('SP (surface patch)') && a.includes('GH (helix)')), JSON.stringify(alerts));
+check('SP/GH: Warnings 写入英文条目', windowStub.N2M.state.unsupportedErrors.some(x => x.includes('Unsupported geometry cards') && x.includes('SP (surface patch)')), '');
+
 console.log(`\n${pass} PASS / ${fail} FAIL`);

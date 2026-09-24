@@ -50,7 +50,7 @@ function check(n, c, d) { if (c) { pass++; console.log('PASS ' + n + (d ? '  ' +
   lines.push('GM 0, 100000000');
   const notes = [];
   const t0 = Date.now();
-  const r = api.collectWires(lines, {}, 1, notes);
+  const r = api.collectWires(lines, {}, notes);
   const dt = Date.now() - t0;
   check('M1: GM 1e8 被预算拦截 (不 OOM)', r.length === 5 && dt < 2000, `wires=${r.length} in ${dt}ms`);
   check('M1: 拦截告警产生', notes.some(n => n.key === 'n2m.gm.budget' && String(n.params.nrpt) === '100000000'), notes[0] || '');
@@ -58,17 +58,17 @@ function check(n, c, d) { if (c) { pass++; console.log('PASS ' + n + (d ? '  ' +
   const lines2 = [];
   for (let i = 0; i < 5; i++) lines2.push(`GW ${i + 1} 1 0 0 ${i} 0 0 ${i} 0.001`);
   lines2.push('GM 0, 39999');
-  const r2 = api.collectWires(lines2, {}, 1, []);
+  const r2 = api.collectWires(lines2, {}, []);
   check('M1: 预算内复制正常 (5×40000=200000)', r2.length === 200000, String(r2.length));
   // 正常小复制不受影响
   const lines3 = [];
   for (let i = 0; i < 3; i++) lines3.push(`GW ${i + 1} 1 0 0 ${i} 0 0 ${i} 0.001`);
   lines3.push('GM 0, 2');
-  const r3 = api.collectWires(lines3, {}, 1, []);
+  const r3 = api.collectWires(lines3, {}, []);
   check('M1: 正常 GM nrpt=2 复制 3→9', r3.length === 9, String(r3.length));
   // nrpt=0 原地旋转路径不变 (GM itg,nrpt,rx,ry,rz,…: GM 0,0,0,30 绕 Y 30°: (1,0)→(cos30, 0, -sin30))
   const lines4 = ['GW 1 1 1 0 0 0 0 0 0.001', 'GM 0, 0, 0, 30'];
-  const r4 = api.collectWires(lines4, {}, 1, []);
+  const r4 = api.collectWires(lines4, {}, []);
   const expC = Math.cos(Math.PI / 6), expS = Math.sin(Math.PI / 6);
   check('M1: nrpt=0 原地旋转路径不变 (GM 绕Y 30°)', r4.length === 1 && Math.abs(r4[0].x1 - expC) < 1e-9 && Math.abs(r4[0].z1 + expS) < 1e-9, `x1=${r4[0].x1.toFixed(4)} z1=${r4[0].z1.toFixed(4)}`);
 }

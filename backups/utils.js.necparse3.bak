@@ -65,11 +65,6 @@
                 while (j > 0 && /[A-Za-z0-9_.]/.test(s[j - 1])) j--;   // 含函数/标识符前缀 (Math.pow 含小写)
             } else {
                 while (j >= 0 && /[A-Za-z0-9_.]/.test(s[j])) j--;
-                // 科学计数法尾数 (1E-3): 回扫停在符号处 → 补 E± 前缀
-                if (j >= 0 && /[+\-]/.test(s[j]) && j - 1 >= 0 && /[EeDd]/.test(s[j - 1])) {
-                    j -= 2;
-                    while (j >= 0 && /[A-Za-z0-9_.]/.test(s[j])) j--;
-                }
                 j++;
             }
             let base = s.slice(j, endL + 1);
@@ -77,18 +72,12 @@
             while (k < s.length && s[k] === ' ') k++;
             let startR = k;
             if (s[k] === '-' || s[k] === '+') k++;
-            while (k < s.length && /[A-Za-z0-9_.]/.test(s[k])) {
-                // 科学计数法指数 (2^3.5E-3): E±数字 一并纳入操作数
-                if (/[EeDd]/.test(s[k]) && /[+\-]/.test(s[k + 1] || '') && /[0-9]/.test(s[k + 2] || '')) k += 2;
-                else k++;
-            }
+            while (k < s.length && /[A-Za-z0-9_.]/.test(s[k])) k++;
             if (k < s.length && s[k] === '(') { let close = matchParen(s, k); k = close >= 0 ? close : k - 1; }
             else k--;
             let exp = s.slice(startR, k + 1);
             s = s.slice(0, j) + 'Math.pow(' + base + ',' + exp + ')' + s.slice(k + 1);
         }
-        // 护栏耗尽仍有 '^' (异常病灶/超长链) → 失败, 绝不留给 new Function 按位异或静默出错值
-        if (s.indexOf('^') >= 0) return 'NaN';
         return s;
     }
     function evalExpr(exprStr, symbols) {
@@ -123,11 +112,10 @@
         // ④ 长度单位字 (裸用/后缀/表达式+单位): MM/CM/IN/FT/M → 数值; 已定义符号同名时不替换
         s = replaceLengthUnits(s, symbols);
 
-        // ⑤ 隐式乘法 (符号感知: 0.5D1 → 0.5*D1; 单字母 E/D 后接带符号数视为 Fortran 指数不插乘)
+        // ⑤ 隐式乘法 (符号感知: 0.5D1 → 0.5*D1; 排除 Fortran E/D 指数形态 3.5E-3)
         for (let key in symbols) {
             const k = key.toUpperCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            const expGuard = /^[ED]$/.test(key.toUpperCase()) ? '(?![+-]?\\d)' : '';
-            s = s.replace(new RegExp('(^|[^A-Z0-9_])((?:[0-9]+(?:\\.[0-9]*)?|\\.[0-9]+|\\)))\\s*(' + k + ')(?![A-Z0-9_])' + expGuard, 'g'), '$1$2*$3');
+            s = s.replace(new RegExp('(^|[^A-Z0-9_])((?:[0-9]+(?:\\.[0-9]*)?|\\.[0-9]+|\\)))\\s*(' + k + ')(?![A-Z0-9_])(?![+-]?\\d)', 'g'), '$1$2*$3');
         }
 
         let changed = true, iterations = 0;
@@ -255,17 +243,14 @@
         }
         const expect = { GW: 10, GC: 7, GM: 10, GX: 3, GS: 4, GE: 2, EX: 6, LD: 7, FR: 6 }[toks[0]] || 0;
         if (expect && toks.length - 1 <= expect) return toks;
-        // 运算符合并仅限几何卡 (语料中空格表达式只出现在 GW/GM/GX/GS; EX/LD 的独立 +/- 应保持两字段)
-        const allowOpMerge = /^(GW|GC|GM|GX|GS)$/.test(toks[0]);
         let fields = [toks[0]];
         for (let i = 1; i < toks.length; i++) {
             let t = toks[i];
             if (/[^\x20-\x7E]/.test(t)) break;
             let prev = fields[fields.length - 1];
-            if (allowOpMerge && (t === '+' || t === '-' || t === '*' || t === '/' || t === '^')) { fields[fields.length - 1] = prev + t; continue; }
-            if (allowOpMerge && /[+\-*/^]\s*$/.test(prev)) { fields[fields.length - 1] = prev + t; continue; }
-            const units = /^(MM|CM|M|IN|FT|UH|MH|PF|NF|UF|NH)$/;
-            if (units.test(t.toUpperCase()) && /[0-9)]$/.test(prev)) { fields[fields.length - 1] = prev + t; continue; }
+            if (t === '+' || t === '-' || t === '*' || t === '/' || t === '^') { fields[fields.length - 1] = prev + t; continue; }
+            if (/[+\-*/^]\s*$/.test(prev)) { fields[fields.length - 1] = prev + t; continue; }
+            if (GS_UNITS.hasOwnProperty(t.toLowerCase()) && /[0-9)]$/.test(prev)) { fields[fields.length - 1] = prev + t; continue; }
             fields.push(t);
         }
         return fields;
@@ -275,9 +260,7 @@
     //   百分比形态 → 返回该 tag 首根 + seg=null (由 getMmanaPos 按百分比处理); 未命中 → null
     function locateSegment(wires, tag, segStr, symbols) {
         let isPct = segStr.indexOf('%') >= 0;
-        let raw = evalExpr(segStr.replace('%', ''), symbols);
-        if (raw > 0 && raw < 1) isPct = true;   // 0<seg<1 小数 → 视作百分比 (getMmanaPos 处理)
-        let m = Math.round(raw);
+        let m = Math.round(evalExpr(segStr.replace('%', ''), symbols));
         if (!isFinite(m)) return null;
         if (tag === 0) {
             if (isPct) return null;

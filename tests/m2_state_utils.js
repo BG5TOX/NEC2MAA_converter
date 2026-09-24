@@ -45,13 +45,19 @@ check('全枚举 N=1..30 (保留段精确/收敛段在锚点)', bad === 0, 'bad=
 check('W8BYA 31段 s=16 → c 零告警', api.getMmanaPos(1, '16', 31, {}, []) === 'c');
 check('50% → c', api.getMmanaPos(1, '50%', 21, {}, []) === 'c');
 
-// === GS 单位 9 形态 ===
+// === GS 单位 9 形态 (2026-09-24 审计修复: 裸单位分支前置, 失败→NaN) ===
 check('ft 裸单位', api.parseGsScale('FT', {}).val === 0.3048);
+check('mm 裸单位 (修复: 原被 M+M 误拆 → 0)', api.parseGsScale('MM', {}).val === 0.001, JSON.stringify(api.parseGsScale('MM', {})));
+check('cm 裸单位 (修复)', api.parseGsScale('CM', {}).val === 0.01, JSON.stringify(api.parseGsScale('CM', {})));
+check('m 裸单位', api.parseGsScale('M', {}).val === 1);
+check('in 裸单位', api.parseGsScale('IN', {}).val === 0.0254);
 check('135cm', api.parseGsScale('135CM', {}).val === 1.35);
 check('2.5in', api.parseGsScale('2.5IN', {}).val === 0.0635);
 check('300mm', api.parseGsScale('300MM', {}).val === 0.3);
-check('非法 xyz → 0 (v02 evalExpr catch 语义一致)', api.parseGsScale('XYZ', {}).val === 0);
+check('2*ft 表达式+单位', api.parseGsScale('2*ft', {}).val === 0.6096, JSON.stringify(api.parseGsScale('2*ft', {})));
+check('非法 xyz → NaN (审计修复: 不再静默按 0/1.0)', !isFinite(api.parseGsScale('XYZ', {}).val));
 check('纯数字 0.0254', api.parseGsScale('0.0254', {}).val === 0.0254);
+check('符号值 GS (SCAL=0.3048)', api.parseGsScale('SCAL', { SCAL: 0.3048 }).val === 0.3048);
 
 // === evalExpr / 其他 ===
 check('evalExpr 算术', api.evalExpr('2+3*4', {}) === 14);

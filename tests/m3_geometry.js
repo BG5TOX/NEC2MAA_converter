@@ -9,7 +9,7 @@ function check(name, cond, detail) {
   if (cond) { pass++; console.log('PASS ' + name + (detail ? '  ' + detail : '')); }
   else { fail++; console.log('FAIL ' + name + (detail ? '  ' + detail : '')); process.exitCode = 1; }
 }
-function wiresOf(nec) { return api.collectWires(nec.split('\n'), {}, 1.0, []); }
+function wiresOf(nec) { return api.collectWires(nec.split('\n'), {}, []); }
 
 // === v02 文档 §6 GM 全用例 ===
 // 1. 绕Z 90° 就地
@@ -33,12 +33,30 @@ w = wiresOf('GW 1 9 1 0 0 -1 0 0 0.001\nGM 0 0 0 0 90 0 0 0\nGW 2 9 1 0 0 -1 0 0
 check('GM 后新 GW 隔离', w.length === 2 && Math.abs(w[0].y1 - 1) < 1e-9 && w[1].x1 === 1, `w0=(${w[0].x1},${w[0].y1}) w1=(${w[1].x1},${w[1].y1})`);
 // 7. 多轴告警 (i18n-3 批次同步: 告警改结构化 {key, params})
 let gmNotes = [];
-wiresOf2 = (nec) => api.collectWires(nec.split('\n'), {}, 1.0, gmNotes);
-api.collectWires('GW 1 9 1 0 0 -1 0 0 0.001\nGM 0 0 30 40 0 0 0 0'.split('\n'), {}, 1.0, gmNotes);
+wiresOf2 = (nec) => api.collectWires(nec.split('\n'), {}, gmNotes);
+api.collectWires('GW 1 9 1 0 0 -1 0 0 0.001\nGM 0 0 30 40 0 0 0 0'.split('\n'), {}, gmNotes);
 check('多轴旋转告警', gmNotes.some(n => n.key === 'n2m.gm.multiAxis'), JSON.stringify(gmNotes));
-// 8. GS×GM: 平移与坐标同处文件单位, 同乘缩放 (2026-09-20 GM 修复)
-w = api.collectWires('GW 1 9 0 0 1 0 0 -1 0.001\nGS 0 0 2\nGM 0 0 0 0 0 0 0 1'.split('\n'), {}, 2.0, []);
-check('GS×GM: z=(±2)+2, rad=0.002', w[0].z1 === 4 && w[0].z2 === 0 && w[0].rad === 0.002, JSON.stringify(w[0]));
+// 8. GS×GM (2026-09-24 审计修复: GS 顺序语义 — 就地缩放此前几何; GM 平移处于"当前单位"不缩放)
+w = api.collectWires('GW 1 9 0 0 1 0 0 -1 0.001\nGS 0 0 2\nGM 0 0 0 0 0 0 0 1'.split('\n'), {}, []);
+check('GS×GM: z=(±2)+1, rad=0.002 (GM 在 GS 后按新单位)', w[0].z1 === 3 && w[0].z2 === -1 && w[0].rad === 0.002, JSON.stringify(w[0]));
+// 8b. GM 在 GS 前: 平移随坐标同乘缩放 (与旧实现一致)
+w = api.collectWires('GW 1 9 0 0 1 0 0 -1 0.001\nGM 0 0 0 0 0 0 0 1\nGS 0 0 2'.split('\n'), {}, []);
+check('GM 在 GS 前: ((±1)+1)×2 → z=4/0, rad=0.002', w[0].z1 === 4 && w[0].z2 === 0 && w[0].rad === 0.002, JSON.stringify(w[0]));
+// 8c. GS 裸单位 mm (审计 S1-2 修复): 毫米模型缩放 0.001
+w = api.collectWires('GW 1 1 0 0 0 449 0 0 0.001\nGS 0 0 mm'.split('\n'), {}, []);
+check('GS 0 0 mm: x2=0.449, rad=1e-6', Math.abs(w[0].x2 - 0.449) < 1e-12 && Math.abs(w[0].rad - 1e-6) < 1e-18, JSON.stringify(w[0]));
+// 8d. GS 段范围 (XNEC2C 形态): 不应用 + 告警
+let gsNotes = [];
+w = api.collectWires('GW 1 1 0 0 0 449 0 0 0.001\nGS 3 4 0.775'.split('\n'), {}, gsNotes);
+check('GS 段范围: 不缩放 + segRange 告警', w[0].x2 === 449 && gsNotes.some(n => n.key === 'n2m.gs.segRange' && n.params.i1 === 3 && n.params.i2 === 4), JSON.stringify(gsNotes));
+// 8e. GS 解析失败: gs.bad 告警 (阻断由 convert 执行)
+gsNotes = [];
+api.collectWires('GW 1 1 0 0 0 1 0 0 0.001\nGS 0 0 xyz'.split('\n'), {}, gsNotes);
+check('GS 失败: gs.bad 告警', gsNotes.some(n => n.key === 'n2m.gs.bad' && n.params.raw === 'XYZ'), JSON.stringify(gsNotes));
+// 8f. GS 单位后缀: unit 注记 + 缩放 0.3048
+gsNotes = [];
+w = api.collectWires('GW 1 1 0 0 0 1 0 0 0.001\nGS 0 0 ft'.split('\n'), {}, gsNotes);
+check('GS ft: unit 注记 + 缩放 0.3048', Math.abs(w[0].x2 - 0.3048) < 1e-12 && gsNotes.some(n => n.key === 'n2m.gs.unit' && n.params.unit === 'FT'), JSON.stringify(gsNotes));
 // 9. 连续 GM 指数复制 (batch8 发现): 3 次 NRPT=1 → 8 根, z 序列
 w = wiresOf('GW 1 11 0.134 -1.23135 -0.952 0.134 -0.89465 -0.952 0.004\nGM 26 1 0 0 0 0 0 1.904\nGM 26 1 0 0 0 0 0 1.904\nGM 26 1 0 0 0 0 0 1.904');
 const zs = w.map(x => x.z1);
@@ -48,7 +66,7 @@ check('z 序列 (1→2→4→8)', JSON.stringify(zs) === JSON.stringify([-0.952,
 w = wiresOf('GW 1 21 0 0 5 0 0 -5 0.001');
 check('wire.ns 保留 (21)', w[0].ns === 21 && w[0].tag === 1);
 // 11. SY/SYMBOL 经 evalExpr
-w = api.collectWires('SY LEN=5\nGW 1 9 0 0 5 0 0 -5 0.001'.split('\n'), { LEN: 5 }, 1.0, []);
+w = api.collectWires('SY LEN=5\nGW 1 9 0 0 5 0 0 -5 0.001'.split('\n'), { LEN: 5 }, []);
 check('SY 符号进 collectWires (经调用方 symbols)', w[0].z1 === 5);
 
 // === 2026-09-20 GM 解析修复 (ITS F7 + NRPT 累积变换, 参照 HAM_Structural_Analysis) ===
@@ -66,12 +84,12 @@ w = wiresOf('GW 1 1 0 0 0 1 0 0 0.01\nGW 2 1 0 0 0 1 0 0 0.01\nGW 3 1 0 0 0 1 0 
 check('GM ITS=3 复制: 4 根 tag=[1,2,3,13]', w.length === 4 && JSON.stringify(w.map(x => x.tag)) === JSON.stringify([1, 2, 3, 13]) && w[3].z1 === 5, JSON.stringify(w.map(x => x.tag)));
 // 16. ITS 未命中: 告警 + 按全结构从宽处理 (NEC 原生此处报错终止)
 gmNotes = [];
-w = api.collectWires('GW 1 1 0 0 0 1 0 0 0.01\nGM 0 0 0 0 0 0 1 0 99'.split('\n'), {}, 1.0, gmNotes);
+w = api.collectWires('GW 1 1 0 0 0 1 0 0 0.01\nGM 0 0 0 0 0 0 1 0 99'.split('\n'), {}, gmNotes);
 check('GM ITS 未命中: 全结构 + itsNotFound 告警', w[0].y1 === 1 && gmNotes.some(n => n.key === 'n2m.gm.itsNotFound' && n.params.its === 99), JSON.stringify(gmNotes));
 // 17. 真实样例回归: 2m/70cm 堆叠靠 ITS 分组, 正确 164 根 (旧实现 548 根, 两组互相污染)
 const samplePath = 'F:\\temp\\AGTC_anyGTa_2lite_V2-00\\NEC2MAA_converter\\NEC2MAA_converter_main\\samples\\2M_70CM_STACK_2MBAND_extra_ref(1).NEC';
 if (fs.existsSync(samplePath)) {
-  const sw = api.collectWires(fs.readFileSync(samplePath, 'utf8').split('\n'), {}, 1.0, []);
+  const sw = api.collectWires(fs.readFileSync(samplePath, 'utf8').split('\n'), {}, []);
   const shortGroup = sw.slice(0, 128), longGroup = sw.slice(128);
   check('样例 2M/70CM 堆叠 ITS: 164 根 (70cm 128 短 + 2m 36 长)',
         sw.length === 164 && shortGroup.length === 128 && longGroup.length === 36
@@ -100,15 +118,15 @@ w = wiresOf('GW 0 1 1 2 3 1 2 3 0.01\nGX 5 100');
 check('GX tag=0 不递增', w.length === 2 && w[1].tag === 0, JSON.stringify(w.map(x => x.tag)));
 // 23. GW 半径=0 (GC 锥度续行) → 跳过 + gcTaper 告警
 gmNotes = [];
-w = api.collectWires('GW 1 5 0 0 0 1 0 0 0\nGC 1 0.001 0.001'.split('\n'), {}, 1.0, gmNotes);
+w = api.collectWires('GW 1 5 0 0 0 1 0 0 0\nGC 1 0.001 0.001'.split('\n'), {}, gmNotes);
 check('GW 半径0(GC): 跳过 + gcTaper 告警', w.length === 0 && gmNotes.some(n => n.key === 'n2m.gw.gcTaper' && n.params.tag === 1 && n.params.count === 1), JSON.stringify(gmNotes));
 // 24. GW 半径空白 (9 字段) → 同样跳过+告警 (旧实现静默丢弃)
 gmNotes = [];
-w = api.collectWires('GW 1 5 0 0 0 1 0 0\nGC 1 0.001 0.001'.split('\n'), {}, 1.0, gmNotes);
+w = api.collectWires('GW 1 5 0 0 0 1 0 0\nGC 1 0.001 0.001'.split('\n'), {}, gmNotes);
 check('GW 半径空白: 跳过 + gcTaper 告警', w.length === 0 && gmNotes.some(n => n.key === 'n2m.gw.gcTaper'), JSON.stringify(gmNotes));
 // 25. 多根 GC 锥度导线聚合为 1 条告警 (count 累计)
 gmNotes = [];
-w = api.collectWires('GW 1 5 0 0 0 1 0 0 0\nGC 1 0.001 0.001\nGW 2 5 0 1 0 1 1 0 0\nGC 1 0.001 0.001'.split('\n'), {}, 1.0, gmNotes);
+w = api.collectWires('GW 1 5 0 0 0 1 0 0 0\nGC 1 0.001 0.001\nGW 2 5 0 1 0 1 1 0 0\nGC 1 0.001 0.001'.split('\n'), {}, gmNotes);
 check('GC 锥度聚合告警: 1 条 count=2', w.length === 0 && gmNotes.filter(n => n.key === 'n2m.gw.gcTaper').length === 1 && gmNotes[0].params.count === 2, JSON.stringify(gmNotes));
 
 console.log(`\n${pass} PASS / ${fail} FAIL`);

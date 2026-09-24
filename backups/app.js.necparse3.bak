@@ -406,15 +406,7 @@
                 const text = N2M.$('inputNec').value;
                 if (!text.trim()) return alert(L('ui.alert.noInput'));
                 sniffDirection(text);
-                let p;
-                try {
-                    p = extractM2nPanel(text, true);
-                } catch (e) {
-                    // 2026-09-24 审计修复: M2N 重新提取兜底 (与 N2M 侧一致)
-                    console.error(e);
-                    alert(L('ui.alert.parseError', { msg: e.message }));
-                    return;
-                }
+                const p = extractM2nPanel(text, true);
                 syncGroundDisabled();   // R7: M2N 重新提取后刷新禁用态
                 if (p) alert(L('ui.alert.parseDone', { w: p.wires.length, s: p.sources.length, l: p.loads.length }));
             } else {

@@ -1,5 +1,6 @@
 # NEC2MAA_converter_v05 — AGENTS.md
 
+> **v07 = v06 + NEC 解析审计修复（表达式层/SY 顺序求值/GS 顺序语义/GR/卡片层容错，2026-09-24 发布 v0.7）。**
 > **v06 = v05 + NEC 几何/卡片解析审计修复（GM ITS(F7)/NRPT 累积、GX packed I2、GW GC 锥度；2026-09-20 发布 v0.6）。**
 > **v05 = v04 + i18n（英文界面 + 中英文运行时切换，2026-09-05 发布 v0.5 终态）。**
 > v0.5 决策（用户批复 2026-09-04）：**D1=B1**（UI 跟随语言，输出文件恒英文 LF()）／**D2=toggle 按钮**（简体中文↔English）／**D3=默认简体中文**（localStorage 记忆恢复）／**D4=版本标记升 v0.5**（含 723 hash 基线一次性重审定）。方案文档：`docs/v0.5英文界面与中英文切换_可行性评估与实施方案.md`。
@@ -94,38 +95,57 @@ NEC2MAA_converter_v05/
 
 - **P0：T5 4NEC2 实测**——`50%`/`100%`/`1` 段号解析、`0.5*D1`/`z+h`/`2*PI*f*L1*1E-6/Q1` 表达式求值、SY 一卡一参多卡连续性；**R21 新增**：锥度锚点子段内部百分比（如 43.2%）、子段边界整数段号（"tag, 1" 复合段字段）、多段相连 GW 台阶半径的 4NEC2 几何/电流连续性表现；`100%` 不识别则改 `99%` 兜底
 - 次级：M6 双跑回归（可选加固）；安全审计已闭环（SF1+SF2 八项修复，见 docs/安全审计与内存风险清单.md）
-- **解析审计遗留（2026-09-20，待用户裁决）**：① GS 多卡仅取末条（未按 NEC 增量缩放）、GS 早于其引用 SY 时求值失败、<4 字段形式跳过；② LD 类型编号与 NEC-2 手册不同（项目 1=串联 RLC/2=并联 RLC/3=串 R+jX/4=并 G+jB/5=电导率；手册 0=串联/1=并联/2=串每米/3=并每米/4=阻抗/5=电导率）——现有 m4 断言按项目编号固化；③ GN 仅映射地面类型，εr/σ（F1/F2）与 NRADL/第二介质未读取。详见 §6 2026-09-20 条目
+- **解析审计遗留（2026-09-20，待用户裁决）**：① GS 多卡仅取末条（未按 NEC 增量缩放）、GS 早于其引用 SY 时求值失败、<4 字段形式跳过——**2026-09-24 已裁决：按 NEC-2 顺序语义修复（见 `docs/NEC解析修复落地方案.md` §2-1-A3）**；② LD 类型编号与 NEC-2 手册不同（项目 1=串联 RLC/2=并联 RLC/3=串 R+jX/4=并 G+jB/5=电导率；手册 0=串联/1=并联/2=串每米/3=并每米/4=阻抗/5=电导率）——现有 m4 断言按项目编号固化；③ GN 仅映射地面类型，εr/σ（F1/F2）与 NRADL/第二介质未读取。详见 §6 2026-09-20 条目
 
 ## 4. 工作规则
 
 1. v05 项目内只允许写 `NEC2MAA_converter_v05/`；v04/v03/v02/v01/备份只读（v04 已归档为发布基线）
 2. 每批次 1–2 步，做完停等确认；改动前备份到 `backups/`（`<file>.R<n>.bak` 或 `<file>.日期_批次.bak`）
 3. 测试脚本入 `tests/`（硬编码绝对路径，重跑注意）；被取代/过时的测试移入 `tests/archive/` 并更新其 README
-4. 行为变化即失败——改动须跑相关回归套件全绿后才算完成；M2N 输出有 723 文件 hash 基线（`backups/preR21h_723_output_hashes.json`，**v0.6 快照**=v0.6 CM 行+英文告警；旧 v0.5 基线存档 `.v05baseline.json`（v0.4 `.v04baseline.json`）；任何输出格式变化须重新审定基线并在 r21 断言同步）
+4. 行为变化即失败——改动须跑相关回归套件全绿后才算完成；M2N 输出有 723 文件 hash 基线（`backups/preR21h_723_output_hashes.json`，**v0.7 快照**=v0.7 CM 行+英文告警；旧 v0.6 基线存档 `.v06baseline.json`（v0.5 `.v05baseline.json`、v0.4 `.v04baseline.json`）；任何输出格式变化须重新审定基线并在 r21 断言同步）
 5. **【禁令】严禁通过 PowerShell 修改本项目任何文件**——包括但不限于 `Get-Content`/`Set-Content`/`Out-File`/`Add-Content`/重定向 `>`/`>>` 及一切 PowerShell 文本管道改写。历史事故两次实证：R21g 一次全损（CP1251/UTF-8 编码陷阱）、v0.5 i18n 批一次测试文件成批乱码（同根因：Windows PowerShell 5.1 文本管线按系统 ANSI 代码页静默转码 UTF-8 中文文件）。**文件读写一律用 edit 工具（精确字符串替换，编码无损）；批量程序化改写一律用 Node `fs.readFileSync/writeFileSync`（显式 utf8，编码受控）**。PowerShell 仅允许用于：目录/文件管理（New-Item/Copy-Item/Move-Item/Remove-Item 等二进制安全操作）与命令执行（node/git），不触碰文件内容。
 6. **改告警文案 = 改语言包 zh.js/en.js 两处同步**，键集/插值占位符跑 `node tests/i18n_lang.js` 自检；新增 UI 文案同步加 data-i18n 属性与词条；语言包内空白间隔用真实 NBSP 字符（U+00A0），**禁用 `&nbsp;` HTML 实体**（textContent 渲染为字面量）
 7. **双 README 同步维护**：`README.md`（中文）与 `README.en.md`（英文）为并列镜像文档——**任何功能/版本/结构变更须两文件同步更新**（章节结构、数据、表格一一对应，顶部互链）；本项目以 **MIT License** 发布（根目录 LICENSE 标准文本，改协议须先经用户批复）
 8. **版本升级一键脚本**：`node tools/bump_version.js vX.Y`（自动：识别当前版本 → 改 index/语言包/writer/测试的版本标记（仅改精确当前 token，不动历史版本与文档正文）→ 归档旧 hash 基线 → 用新代码重生成 723 基线 → 跑 r19/sf2/r21/i18n_lang）。文档正文（AGENTS/README/发布归档/状态条目）需手工补，清单由脚本结尾打印；`--dry-run` 预演、`--no-baseline`/`--no-tests` 可跳过。变更前快照 `backups/*.<oldVer>bump.bak`
+9. **不确定即提问，且必须给选择题**：凡遇到不明白、不确定或存在多种合理解释的需求/语义/设计取舍，一律先向用户提问，并以**多选项（含推荐项）**形式呈现由用户裁决；禁止自行猜测决策。裁决结果记入对应方案文档的「决策记录」节后再实施。
 
-## 5. 测试集（2026-09-20 v0.6）
+## 5. 测试集（2026-09-24 v0.7）
 
-活跃 17 个（全绿）：
-- **基础层**：m2_state_utils / m3_geometry / m4_extract / m5_convert_app（N2M 端到端；m3 覆盖 GW/GX/GM 几何契约——GM ITS(F7)/NRPT 累积、GX packed I2（含前导 0 八进制陷阱）、GW 半径空白/0（GC 锥度）跳过+聚合告警、样例 164 根）
+活跃 20 个（全绿，516 断言）：
+- **基础层**：m2_state_utils / m3_geometry / m4_extract / m5_convert_app（N2M 端到端；m3 覆盖 GW/GX/GM/GR/GS 几何契约——GM ITS(F7)/NRPT 累积、GX packed I2（含前导 0 八进制陷阱）、GW 半径空白/0（GC 锥度）跳过+聚合告警、GS 顺序语义（就地缩放/段范围告警/失败告警）、样例 164 根）
+- **N2M 解析审计（v0.7 新增）**：m6_expr_sy（表达式层 `^`/SQR/ATN/INT/LOG10/MOD + 单位字 + AWG `#NN[/unit]` + 前导零 + 隐式乘法 + 护栏 + SY 一卡多声明/顺序求值/交错重定义 + LoopCirc20/4elQuad/3vertical 定点）/ m7_cards_gs（GR/NS=0/CW/NX/字段切分/tag=0 绝对段号/多导线段组/告警两路径一致 + 跨文件污染消除 + 语料定点）/ m8_corpus_fixedpoint（2493 文件全量阈值：崩溃 0、全零长 0、GS 失败 0、无导线 ≤30 + 22 个定点文件）
 - **M2N 核心**：r2_t2t3_writer（writer 契约+全库 722 冒烟+ASCII）
 - **UI/流程**：r5b_backfix2（wizard flex 往返）/ r9_six_items（文件名/标题契约）
-- **功能契约**：r11_manual_ground（G/H 行+材料+拦截）/ r14_seg_params（分段）/ r16_layout_firstentry（布局+首进禁用）/ r17_note_bottom（提醒框）/ r19_title_cm（标题→首条 CM，v0.6 版本行断言）/ r20_avg_ground_default（Average 地面默认）
-- **R21 锥度**：r21_taper_rebuild（jp2000 金标准 10→56（R21f）+ w10 用户公式 + 8EL6MW/4EL20HM/dx415tt 类型映射 + 边角矩阵 + 端到端输出 + **v0.6 基线 0 漂移** + 21 锥度文件清单固化）
+- **功能契约**：r11_manual_ground（G/H 行+材料+拦截）/ r14_seg_params（分段）/ r16_layout_firstentry（布局+首进禁用）/ r17_note_bottom（提醒框）/ r19_title_cm（标题→首条 CM，v0.7 版本行断言）/ r20_avg_ground_default（Average 地面默认）
+- **R21 锥度**：r21_taper_rebuild（jp2000 金标准 10→56（R21f）+ w10 用户公式 + 8EL6MW/4EL20HM/dx415tt 类型映射 + 边角矩阵 + 端到端输出 + **v0.7 基线 0 漂移** + 21 锥度文件清单固化）
 - **SF1 安全修复**：sf1_security_fixes（M3 TextDecoder / S2 键字面量化 / M2 revoke / M1 GM 预算）
 - **SF2 质量修复**：sf2_quality_fixes（S3 CM 单行净化 / R1 有限值门禁（英文 throw 断言）/ R2 标题 70 截断 / S4 $$$ 悬空告警 + VDP40B/jp2000 回归）
-- **i18n（v0.5 新增）**：i18n_lang（目录扫描语言包：注册/meta/键集对齐 200 词条/插值占位符一致/terms 引用有效/语法预检/L·LF 渲染/回退链/setLang）
+- **i18n（v0.5 新增）**：i18n_lang（目录扫描语言包：注册/meta/键集对齐 210 词条/插值占位符一致/terms 引用有效/语法预检/L·LF 渲染/回退链/setLang）
 
-运行：`node tests/<script>.js`（依赖 C:\MMANA-GALBasic3\ANT 官方 722 文件库、F:\Antenna_Models 的 W8BYA.nec、F:\Antenna\jp2000_147.maa；i18n_lang 独立可跑无外部依赖）。
+运行：`node tests/<script>.js`（依赖 C:\MMANA-GALBasic3\ANT 官方 722 文件库、F:\Antenna_Models（W8BYA.nec + m6/m7/m8 语料）、F:\Antenna\jp2000_147.maa；i18n_lang 独立可跑无外部依赖）。
 已归档 10 个 + README 见 `tests/archive/`。
 
+**v0.7 测试同步说明**：m2/m3/m4/m5/sf1 的 `collectWires` 调用改新签名 (lines, symbols, notes)；`parseGsScale` 失败断言 0→NaN；m3 的 GS×GM 断言按 NEC-2 顺序语义改写（GM 在 GS 后按新单位、不缩放）；m4 的 geomCards 断言改 SP/GH（GR 已实现）。
 **v0.5 测试同步说明**：各测试 src 拼接均已加入 state+i18n+语言包（+maa-taper 修复 v04 遗留缺链）；结构化告警断言改 `{key, params}` 判定（注明"i18n-N 批次同步"）；r2 俄文节头 EX 断言修正为 R21 真实行为（v04 测试因指向 v03 js 而失真——已修正指向）。
 
 ## 6. 当前状态
 
+- 2026-09-24（**NEC 解析审计修复已实施并发布 v0.7**）：基于 `docs/NEC解析功能审计报告.md`（2493 文件实测）与 `docs/NEC解析修复落地方案.md`（4 批次设计 + 用户 10 项裁决）完成全部 P0–P2 修复——
+  - **P0**：`extract.js` `header.geomCardWarnings` TypeError 修复（含 GA/GH/GR/SP/SM 的 68 文件不再崩溃、geomCards 告警首次生效）；`parseGsScale` 重写（裸单位分支前置，`GS 0 0 mm` 不再误判 → 92 文件尺度正确；支持 `2*ft` 表达式+单位）；`GS` 解析失败**阻断转换**（不再静默按 1.0）；app.js `processInputText`/`triggerManualExtract`/`executeConvert`/`executeConvertM2N` try/catch 兜底（新增 `ui.alert.parseError`）
+  - **P1 表达式层**：`evalExpr` 重构——`^` 括号感知转 `Math.pow`（BASIC 一元负号语义）、补 `SQR/SQRT/ATN/ASIN/ACOS(角度制)/INT/FIX/SGN/MOD/LOG10/UF/NH`、长度单位字（裸用/后缀/表达式+单位）、AWG `#NN[/unit]`（公式 `d=0.127×92^((36−n)/39)`，`#0000` 支持）、前导零十进制规范化（`+00.27685`/`0021`）、符号感知隐式乘法（`0.5D1`）、`\bPI\b`/函数词边界（修 `PITCH`/`ASIN` 误替换）、文本膨胀护栏（1e5）；失败**返回 NaN** 不再静默 0
+  - **P1 SY 层**：`applySyDecl` 一卡多声明（顶层逗号切分，括号感知）+ **卡内/跨卡按文件顺序求值**（位置相关重定义：LoopCirc20 类文件 12 根唯一几何；Equations 系列 `DE=…, DE=DE*8`）；`SY` 进入 collectWires/EX/LD 各扫描器就地求值；删除全表统一求值
+  - **P2 卡片层**：`splitCardFields`（注释截断含弯引号/首个非 ASCII、运算符空格表达式 `A + H`/`D/2 - g/2`、数值+空格+单位 `-68 ft`、卡名粘连 `GW1,8,…` 老格式、字段数异常告警）；`GW NS=0` 不生成线段+告警；`CW` 聚合告警（原静默）；`NX` 只取首个数据集+告警；**`GR` 实现**（绕 z 旋转复制 NR 份含原作、tag+ITGI·j）；EX/LD 段定位 `locateSegment`（`tag=0` 绝对段号 + 多导线同 tag 段组 + 未命中告警）；**告警统一** `parseNec`（纯解析）+ 两条路径同一 `fileWarnings` 集合（消除加载/直接转换不一致与跨文件污染）
+  - **N2M 语料验收（m8，2493 文件）**：崩溃 68→**0**、全零长文件 27→**0**、GS 解析失败 92→**0**、无导线 75→**25**（余量均为 CW/SP/GH/GA/GC 锥度/空文件等合理情形）；定点：`GS 0 0 mm`→0.449、`#18/ft`→0.512mm、前导零 16 根无零长、CW 告警、GR 19 根、`0.5D1`→0.006
+  - **语言包 zh/en 各 +10 词条**（`n2m.expr.evalFailed`/`n2m.gw.radUnparsed`/`n2m.gw.ns0`/`n2m.card.fieldShape`/`n2m.cw.unsupported`/`n2m.nx.multiDataset`/`n2m.gs.segRange`/`n2m.tag.notFound`/`ui.alert.parseError`；`n2m.gs.bad` 文案改"阻断"）→ 210 词条
+  - **回归：20 套件 516 断言全绿**（新增 m6_expr_sy 64 / m7_cards_gs 35 / m8_corpus_fixedpoint 28）；备份 `*.necparse1.bak`（改动前）/`*.necparse3.bak`（批次 3 后）
+  - **v0.7 版本标记**：CM 行 `by NEC2MAA v0.7.` + index.html 徽标/页脚 + 语言包 footer 同步；**723 文件 hash 基线全量重审定**（旧 v0.6 基线存档 `backups/preR21h_723_output_hashes.v06baseline.json`）；r19/sf2/r21 版本断言同步 v0.7
+  - **实施期补充决策/偏差**（详见方案文档「实施记录」）：GS 顺序语义的用例形态修正（GS 须在几何之后才缩放，语料 370 个 GS 文件全部如此）；实现中额外发现并修复 3 个语料形态（卡名与首字段粘连 `GW1,8,…`、变码注释 `â` 截断、`SY X=135 ft` 值+空格+单位）
+- 2026-09-24（**NEC 解析审计复核 + 修复方案**，只读阶段）：对 `docs/NEC解析功能审计报告.md`（2493 文件全量实测）做逐条代码复核（只读探针，未改项目文件）——
+  - **确认全部 S1/S2/S3 发现**（`extract.js:68` 崩溃、`GS 0 0 mm`→1.0 尺度错、AWG `#NN`、前导零/八进制、SY 一卡多声明与交错重定义、`^`/SQR/ATN/INT 缺失、单位字、NS=0/CW/NX、tag=0、告警集合不一致、无长度护栏）
+  - **4 处修正/补充**：① 723 hash 基线为 **M2N 专属**（N2M 无基线）；② tag=0 且无 tag=0 导线时 EX/LD **静默丢弃**（比"命中首根"更隐蔽）；③ 真隐式乘法语料**仅 1 文件**（`0.5D1`，该文件 `SY D1=0.012` 且末段写作 `0.5*D1`）、Fortran D 指数 0 文件；④ 前向引用实测≈0（2 例 CE 注释误报）→ 纯顺序求值安全；多张 GS 4 文件均 XNEC2C 段范围形态
+  - **用户裁决（10 项）**：全 P0–P2 范围；GS 失败**阻断**；SY **顺序求值**；GS **NEC-2 顺序语义**（段范围不应用+告警）；求值失败**跳过导线+聚合告警**；`^` **括号感知 Math.pow**；GR **本轮实现**；升 **v0.7**；隐式乘法**符号感知**；app.js **try/catch + 告警统一**
+  - **交付**：`docs/NEC解析修复落地方案.md`（4 批次实施设计 + 语言包增量 + 测试/语料定点清单 + 风险）
+  - **纪律新增（工作规则 9）**：不确定即提问，且必须给选择题由用户裁决
 - 2026-09-20（NEC 几何/卡片解析审计修复）：**GM ITS(F7)+NRPT 累积 + GX packed I2 + GW GC 锥度**（参照 `E:\coding_projects\HAM_Structural_Analysis` 的 `core/nec/geometry.ts` 与 NEC-2 手册）——
   - **GM（主缺陷）**：第 10 字段 **ITS (F7)** 此前被完全忽略（一律作用于全部导线），多组结构互相污染。样例 `samples/2M_70CM_STACK_2MBAND_extra_ref(1).NEC` 旧实现 548 根 → 修复后 **164 根**（70cm 128 短 + 2m 36 长）。NRPT>0 由"每副本=原作+同一变换"改为 **C_j=T^j(原作)**（NEC-2 `move()`）；tag 每轮只加一次 ITG；预算改为 `n + nrpt·(n−start)`；ITS 未命中 → `n2m.gm.itsNotFound` 告警 + 按全结构从宽；平移随 GS 缩放
   - **GX**：I2 原被当成独立 X/Y/Z 三字段，实为**三位数字标志**（百/十/个 = X/Y/Z，反射顺序 Z→Y→X，tag 增量 1/2/4 倍 ITG；tag=0 不递增）。实测库内写法 `GX 40 010`(Y) / `GX 1 011`(Y+Z) / `GX 0 111`(三面) 旧实现全部误判为 X。**`evalExpr` 经 `new Function`，前导 0 字面量按八进制（"010"→8）**——GX I2 必须按原始文本从右取位
@@ -151,5 +171,5 @@ NEC2MAA_converter_v05/
   - **i18n-4**：parser/taper/writer 告警→结构化条目 + 版本标记 v0.4→v0.5（CM 行/徽标/发布日期）+ 723 基线重生成（旧基线存档 `.v04baseline.json`）+ 测试断言同步
   - **验收**：17 套件 367 断言全绿；W8BYA N2M（zh 屏显+英文 Warnings）与 VDP40B M2N（en 全链）双语言端到端冒烟通过；ASCII 终检 0 违例
   - **v04 测试遗留缺陷修正**：v04 多个测试硬编码指向 v03 js（r2 俄文节头断言因 v03 无 R21 而失真）——v05 已全部指向真实 v05 代码并按实际行为修断言
-- 待办：P0 T5 4NEC2 实测（同 v04 遗留）；用户浏览器最终双语言 UI 走查（发布后 6 轮修正已覆盖反馈问题）
-- 版本史：v0.3（2026-09-02，M0–M5+R1–R20）→ v0.4（2026-09-03，R21 系列+审计闭环）→ v0.5（2026-09-04 发布，2026-09-05 收尾，i18n-1..4 + i18n5fix–i18n10icon）→ **v0.6（2026-09-20 发布，GM/GX/GW 解析修复 + 723 基线重审定）**
+- 待办：P0 T5 4NEC2 实测（同 v04 遗留；v0.7 新增关注：`GS 0 0 mm` 尺度、`#NN` 半径、锥度锚点子段百分比、多段相连 GW 台阶半径连续性）；用户浏览器最终双语言 UI 走查
+- 版本史：v0.3（2026-09-02，M0–M5+R1–R20）→ v0.4（2026-09-03，R21 系列+审计闭环）→ v0.5（2026-09-04 发布，2026-09-05 收尾，i18n-1..4 + i18n5fix–i18n10icon）→ v0.6（2026-09-20 发布，GM/GX/GW 解析修复 + 723 基线重审定）→ **v0.7（2026-09-24 发布，NEC 解析审计修复：表达式层/SY 顺序求值/GS 顺序语义/GR/卡片层容错 + 723 基线重审定）**

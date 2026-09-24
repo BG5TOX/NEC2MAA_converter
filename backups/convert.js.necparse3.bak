@@ -113,19 +113,13 @@
         let gsBad = r.gmNotes.find(n => n.key === 'n2m.gs.bad');
         if (gsBad) { alert(L(gsBad.key, gsBad.params)); return; }
 
-        N2M.state.unsupportedErrors = r.fileWarnings.slice();
-        let unsupportedErrors = N2M.state.unsupportedErrors;
-
-        // 非有限值终检 (2026-09-24 审查修复: N2M 侧补 R1 同款门禁 — 任何 NaN/Infinity 不产出)
-        let finiteWires = wires.filter(w => isFinite(w.x1) && isFinite(w.y1) && isFinite(w.z1) && isFinite(w.x2) && isFinite(w.y2) && isFinite(w.z2) && isFinite(w.rad));
-        if (finiteWires.length !== wires.length) {
-            unsupportedErrors.push(`Wires with non-finite values dropped: ${wires.length - finiteWires.length}`);
-            wires = finiteWires;
-        }
         if (wires.length === 0) {
             alert(L('ui.alert.noWire'));
             return;
         }
+
+        N2M.state.unsupportedErrors = r.fileWarnings.slice();
+        let unsupportedErrors = N2M.state.unsupportedErrors;
 
         let maaLines = [];
         let cleanTitle = removeChinese(N2M.$('maaTitle').value) || "Converted_Antenna";
@@ -140,12 +134,6 @@
         buildWiresSection(maaLines, wires, axisMap);
 
         let sourceLines = N2M.$('sourceInput').value.split('\n').map(l=>removeChinese(l).trim()).filter(l=>l);
-        // 源行非有限值门禁 (手改或解析失败行不再产出 NaN)
-        let badSource = sourceLines.filter(l => /NaN|Infinity/i.test(l));
-        if (badSource.length > 0) {
-            unsupportedErrors.push(`Source rows with non-finite values dropped: ${badSource.join(' | ')}`);
-            sourceLines = sourceLines.filter(l => !/NaN|Infinity/i.test(l));
-        }
         buildSourceSection(maaLines, sourceLines);
 
         let loadLines = N2M.$('loadInput').value.split('\n').map(l=>removeChinese(l).trim()).filter(l=>l);

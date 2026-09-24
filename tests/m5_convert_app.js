@@ -130,4 +130,25 @@ elements.freq.value = '14';
 api.executeConvert();
 check('空输入拦截', alerts.some(a => a.includes('请先载入 NEC 代码')), '');
 
+// === 2026-09-24 审计修复: GS 失败阻断 + GS mm 正确缩放 (S1-2 / D2) ===
+reset();
+elements.inputNec.value = 'GW 1 1 0 0 0 1 0 0 0.001\nGS 0 0 xyz\nFR 0 1 0 0 14 0\nEN';
+elements.freq.value = '14';
+api.executeConvert();
+check('GS 失败: 阻断无产出 + 告警', elements.outputMaa.value === '' && alerts.some(a => a.includes('GS 卡缩放因子无法解析')), JSON.stringify(alerts));
+reset();
+elements.inputNec.value = 'SY D1P = 449.0000\nGW 1 1 0 0 0 D1P 0 0 0.001\nGS 0 0 mm\nFR 0 1 0 0 14 0\nEN';
+elements.freq.value = '14';
+api.executeConvert();
+check('GS 0 0 mm: x2=0.4490 且不阻断', elements.outputMaa.value.includes('0.4490') && !alerts.some(a => a.includes('GS 卡缩放因子无法解析')), elements.outputMaa.value.split('\n').slice(0, 8).join(' | '));
+
+// === 2026-09-24 审计修复: 异常兜底 (A4) — 内部异常不再直穿, 弹出 parseError ===
+reset();
+elements.inputNec.value = 'GW 1 1 0 0 0 1 0 0 0.001\nFR 0 1 0 0 14 0\nEN';
+elements.freq.value = '14';
+Object.defineProperty(elements.dm1, 'value', { get() { throw new Error('boom-test'); }, configurable: true });
+api.executeConvert();
+check('异常兜底: parseError 提示 + 不冒泡', alerts.some(a => a.includes('文件解析失败') && a.includes('boom-test')), JSON.stringify(alerts));
+Object.defineProperty(elements.dm1, 'value', { value: '800', writable: true, configurable: true });
+
 console.log(`\n${pass} PASS / ${fail} FAIL`);
