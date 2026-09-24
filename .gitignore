@@ -1,0 +1,5 @@
+# Ignore backups directory
+backups/
+
+# Ignore .kilo directory
+.kilo/
